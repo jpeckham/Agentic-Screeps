@@ -31,6 +31,9 @@ export async function screepsRequest(config, path, init = {}) {
   if (!response.ok) {
     throw new Error(classify(response.status));
   }
+  if (hasApiError(body)) {
+    throw new Error(`Screeps API error: ${sanitizeApiError(body.error)}`);
+  }
   return body;
 }
 
@@ -45,6 +48,14 @@ function parseJson(text, status) {
   } catch {
     throw new Error(`Malformed Screeps API response (${status}): expected JSON.`);
   }
+}
+
+function hasApiError(value) {
+  return value !== null && typeof value === "object" && typeof value.error === "string";
+}
+
+function sanitizeApiError(value) {
+  return value.replace(/[A-Za-z0-9_-]{16,}/g, "[redacted]");
 }
 
 export async function uploadModules(config, branch, modules) {

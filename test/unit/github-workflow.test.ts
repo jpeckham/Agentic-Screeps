@@ -12,5 +12,6 @@ describe("GitHub CI/CD workflow", () => {
     expect(workflow).toContain(
       "if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'"
     );
+    expect(workflow).toContain("SCREEPS_BRANCH: default");
   });
 });

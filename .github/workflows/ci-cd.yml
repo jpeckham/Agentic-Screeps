@@ -74,14 +74,14 @@ jobs:
       - name: Verify downloaded artifact
         run: node scripts/verify-release.mjs dist/release-manifest.json
 
-      - name: Deploy to Screeps agentic branch
+      - name: Deploy to Screeps default branch
         env:
           SCREEPS_TOKEN: ${{ secrets.SCREEPS_TOKEN }}
-          SCREEPS_BRANCH: agentic
+          SCREEPS_BRANCH: default
           SCREEPS_SHARD: ${{ vars.SCREEPS_SHARD }}
         run: npm run deploy:live
 
       - name: Summary
         run: |
-          echo "Screeps branch: agentic" >> "$GITHUB_STEP_SUMMARY"
+          echo "Screeps branch: default" >> "$GITHUB_STEP_SUMMARY"
           echo "Main is the production gate; this workflow deployed after verification." >> "$GITHUB_STEP_SUMMARY"

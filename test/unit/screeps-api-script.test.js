@@ -63,6 +63,22 @@ describe("Screeps API script config", () => {
     }
   });
 
+  test("rejects API error bodies even when Screeps returns HTTP 200", async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async () =>
+      new Response(JSON.stringify({ error: "branch does not exist" }), { status: 200 });
+
+    try {
+      await expect(
+        uploadModules({ token: "token", host: "https://screeps.example" }, "agentic", {
+          main: "module.exports.loop = () => {};"
+        })
+      ).rejects.toThrow(/branch does not exist/);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
   test("reads module maps returned directly by the code endpoint", async () => {
     const originalFetch = globalThis.fetch;
     globalThis.fetch = async () =>
@@ -74,6 +90,22 @@ describe("Screeps API script config", () => {
       await expect(
         readModules({ token: "token", host: "https://screeps.example" }, "agentic")
       ).resolves.toEqual({ main: "module.exports.loop = () => {};" });
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  test("rejects missing branch code responses instead of treating error as a module", async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async () =>
+      new Response(JSON.stringify({ error: "no code" }), {
+        status: 200
+      });
+
+    try {
+      await expect(
+        readModules({ token: "token", host: "https://screeps.example" }, "agentic")
+      ).rejects.toThrow(/no code/);
     } finally {
       globalThis.fetch = originalFetch;
     }

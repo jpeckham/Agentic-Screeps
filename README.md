@@ -4,7 +4,7 @@ Production-safe CI/CD harness for a Screeps AI. Git is the source of truth; `mai
 
 ## Intended Flow
 
-Pushing directly to `main`, or merging a pull request into `main`, deploys to the remote Screeps branch `agentic` after verification passes.
+Pushing directly to `main`, or merging a pull request into `main`, deploys to the remote Screeps branch `default` after verification passes.
 
 The production path is:
 
@@ -15,7 +15,7 @@ The production path is:
 5. Merge to `main` after required checks pass.
 6. The `CI/CD` workflow runs `npm run verify`.
 7. The workflow uploads the immutable `dist/` artifact for inspection.
-8. The workflow uploads the verified artifact to Screeps branch `agentic`.
+8. The workflow uploads the verified artifact to Screeps branch `default`.
 9. If production breaks, fix forward through a new commit to `main`.
 
 ## One-Time Setup
@@ -69,7 +69,7 @@ Workflow inputs are entered when you click **Run workflow**. They are not stored
 
 | Workflow | Input | Type | Value |
 | --- | --- | --- | --- |
-| `CI/CD` | none | none | Runs automatically on pull requests and pushes to `main`. Pull requests build/test only; pushes to `main` deploy to branch `agentic`. Manual dispatch also deploys to `agentic`. |
+| `CI/CD` | none | none | Runs automatically on pull requests and pushes to `main`. Pull requests build/test only; pushes to `main` deploy to branch `default`. Manual dispatch also deploys to `default`. |
 | `Production Deploy` | `artifact_run_id` | String | The GitHub Actions run id that produced the immutable release artifact. |
 | `Production Deploy` | `artifact_name` | String | The artifact name from the auto deploy run, such as `screeps-release-6e43144a` or `screeps-release-<full-github-sha>`. |
 | `Production Deploy` | `target_branch` | String | The inactive Screeps branch to upload/verify/activate, usually `release-<short-sha>`. |
@@ -146,7 +146,7 @@ That workflow:
 - runs `npm run verify`
 - builds once
 - uploads an immutable `dist/` artifact
-- uploads the verified artifact to Screeps branch `agentic` only for pushes to `main` or manual dispatch
+- uploads the verified artifact to Screeps branch `default` only for pushes to `main` or manual dispatch
 
 To manually rerun the same deploy in GitHub:
 
@@ -159,7 +159,7 @@ Record from the completed workflow:
 - workflow run id
 - artifact name
 - release id
-- deployed Screeps branch, always `agentic`
+- deployed Screeps branch, always `default`
 
 ## Production Deploy
 
@@ -181,7 +181,7 @@ The manual production deploy workflow does not rebuild. It downloads the existin
 
 ## Fix Forward
 
-There is no production rollback workflow. If live Screeps code is bad, make the smallest safe fix, verify locally, merge to `main`, and let CI/CD update `agentic`.
+There is no production rollback workflow. If live Screeps code is bad, make the smallest safe fix, verify locally, merge to `main`, and let CI/CD update `default`.
 
 For urgent fixes:
 
@@ -195,10 +195,10 @@ For urgent fixes:
 
 These commands exist so GitHub Actions can reuse the scripts. Do not run them against live production from a workstation.
 
-Upload to the live `agentic` branch:
+Upload to the live `default` branch:
 
 ```bash
-SCREEPS_TOKEN=... SCREEPS_BRANCH=agentic npm run deploy:live
+SCREEPS_TOKEN=... SCREEPS_BRANCH=default npm run deploy:live
 ```
 
 Upload an inactive candidate branch for testing:

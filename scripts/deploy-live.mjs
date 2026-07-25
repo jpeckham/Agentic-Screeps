@@ -5,7 +5,7 @@ import { readConfig, readModules, uploadModules } from "./screeps-api.mjs";
 const manifestPath = resolve(process.argv[2] ?? "dist/release-manifest.json");
 const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
 const distDir = dirname(manifestPath);
-const branch = process.env.SCREEPS_BRANCH ?? "agentic";
+const branch = process.env.SCREEPS_BRANCH ?? "default";
 const config = readConfig();
 const modules = {};
 

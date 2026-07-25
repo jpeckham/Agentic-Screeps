@@ -2,7 +2,7 @@
 
 Create environments:
 
-- `screeps-production`: contains production `SCREEPS_TOKEN` for auto deploy to Screeps branch `agentic`.
+- `screeps-production`: contains production `SCREEPS_TOKEN` for auto deploy to Screeps branch `default`.
 
 Do not configure required reviewers on `screeps-production` if you want true automatic deploy after merge to `main`. Add reviewers only if you want GitHub to pause the auto deploy job for approval.
 
