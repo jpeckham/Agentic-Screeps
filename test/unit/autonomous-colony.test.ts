@@ -144,13 +144,13 @@ function createWorker(name: string, energy: number, ttl = 1500) {
       getFreeCapacity: vi.fn(() => 50 - energy),
       getUsedCapacity: vi.fn(() => energy)
     },
-    harvest: vi.fn(() => constants.OK),
-    transfer: vi.fn(() => constants.OK),
-    upgradeController: vi.fn(() => constants.OK),
-    build: vi.fn(() => constants.OK),
-    repair: vi.fn(() => constants.OK),
-    withdraw: vi.fn(() => constants.OK),
-    moveTo: vi.fn(() => constants.OK)
+    harvest: vi.fn((): number => constants.OK),
+    transfer: vi.fn((): number => constants.OK),
+    upgradeController: vi.fn((): number => constants.OK),
+    build: vi.fn((): number => constants.OK),
+    repair: vi.fn((): number => constants.OK),
+    withdraw: vi.fn((): number => constants.OK),
+    moveTo: vi.fn((): number => constants.OK)
   };
 }
 
@@ -343,6 +343,32 @@ describe("colony execution", () => {
     expect(worker.memory.assignment).toEqual(expect.objectContaining({ type: "upgrade", targetId: "controller" }));
     expect(worker.transfer).not.toHaveBeenCalled();
     expect(worker.upgradeController).toHaveBeenCalledWith(room.controller);
+  });
+
+  test("moves toward harvest, refill, and upgrade targets when out of range", () => {
+    const harvester = createWorker("worker-harvest", 0);
+    harvester.harvest.mockReturnValue(constants.ERR_NOT_IN_RANGE);
+    const harvestRoom = createRoom({ structures: [createSpawn()], creeps: [harvester] });
+    const harvestSnapshot = createColonySnapshot(harvestRoom, constants);
+
+    runWorker(harvester, harvestSnapshot, constants);
+    expect(harvester.moveTo).toHaveBeenCalledWith(expect.objectContaining({ id: "source-a" }));
+
+    const refiller = createWorker("worker-refill", 50);
+    refiller.transfer.mockReturnValue(constants.ERR_NOT_IN_RANGE);
+    const needySpawn = createSpawn(0);
+    const refillRoom = createRoom({ structures: [needySpawn], creeps: [refiller] });
+
+    runWorker(refiller, createColonySnapshot(refillRoom, constants), constants);
+    expect(refiller.moveTo).toHaveBeenCalledWith(needySpawn);
+
+    const upgrader = createWorker("worker-upgrade", 50);
+    upgrader.upgradeController.mockReturnValue(constants.ERR_NOT_IN_RANGE);
+    const fullSpawn = createSpawn(300);
+    const upgradeRoom = createRoom({ structures: [fullSpawn], creeps: [upgrader] });
+
+    runWorker(upgrader, createColonySnapshot(upgradeRoom, constants), constants);
+    expect(upgrader.moveTo).toHaveBeenCalledWith(upgradeRoom.controller);
   });
 
   test("visual telemetry failures do not stop creep execution", () => {

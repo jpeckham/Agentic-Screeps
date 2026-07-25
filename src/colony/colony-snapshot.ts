@@ -12,6 +12,7 @@ export interface SnapshotConstants {
   STRUCTURE_STORAGE: string;
   STRUCTURE_ROAD: string;
   RESOURCE_ENERGY: string;
+  ERR_NOT_IN_RANGE: number;
 }
 
 export interface ColonySnapshot {

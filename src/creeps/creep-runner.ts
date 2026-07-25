@@ -58,14 +58,14 @@ function acquireEnergy(
   );
   if (storage && creep.withdraw) {
     memory.assignment = { type: "harvest", ...(storage.id ? { targetId: storage.id } : {}) };
-    creep.withdraw(storage, constants.RESOURCE_ENERGY);
+    actOrMove(creep, storage, creep.withdraw(storage, constants.RESOURCE_ENERGY), constants);
     return;
   }
 
   const source = chooseSource(creep, snapshot, memory);
   if (source && creep.harvest) {
     memory.assignment = { type: "harvest", ...(source.id ? { sourceId: source.id } : {}) };
-    creep.harvest(source);
+    actOrMove(creep, source, creep.harvest(source), constants);
   }
 }
 
@@ -78,40 +78,40 @@ function performWork(
   const refillTarget = findRefillTarget(snapshot, constants);
   if (refillTarget && creep.transfer) {
     memory.assignment = { type: "deliver", ...(refillTarget.id ? { targetId: refillTarget.id } : {}) };
-    creep.transfer(refillTarget, constants.RESOURCE_ENERGY);
+    actOrMove(creep, refillTarget, creep.transfer(refillTarget, constants.RESOURCE_ENERGY), constants);
     return;
   }
 
   const criticalBuild = findBuildTarget(snapshot, constants, true);
   if (criticalBuild && creep.build) {
     memory.assignment = { type: "build", ...(criticalBuild.id ? { targetId: criticalBuild.id } : {}) };
-    creep.build(criticalBuild);
+    actOrMove(creep, criticalBuild, creep.build(criticalBuild), constants);
     return;
   }
 
   if (controllerNeedsPriority(snapshot) && snapshot.controller && creep.upgradeController) {
     memory.assignment = { type: "upgrade", ...(snapshot.controller.id ? { targetId: snapshot.controller.id } : {}) };
-    creep.upgradeController(snapshot.controller);
+    actOrMove(creep, snapshot.controller, creep.upgradeController(snapshot.controller), constants);
     return;
   }
 
   const buildTarget = findBuildTarget(snapshot, constants, false);
   if (buildTarget && creep.build) {
     memory.assignment = { type: "build", ...(buildTarget.id ? { targetId: buildTarget.id } : {}) };
-    creep.build(buildTarget);
+    actOrMove(creep, buildTarget, creep.build(buildTarget), constants);
     return;
   }
 
   if (snapshot.controller && creep.upgradeController) {
     memory.assignment = { type: "upgrade", ...(snapshot.controller.id ? { targetId: snapshot.controller.id } : {}) };
-    creep.upgradeController(snapshot.controller);
+    actOrMove(creep, snapshot.controller, creep.upgradeController(snapshot.controller), constants);
     return;
   }
 
   const repairTarget = findRepairTarget(snapshot, constants);
   if (repairTarget && creep.repair) {
     memory.assignment = { type: "repair", ...(repairTarget.id ? { targetId: repairTarget.id } : {}) };
-    creep.repair(repairTarget);
+    actOrMove(creep, repairTarget, creep.repair(repairTarget), constants);
     return;
   }
 
@@ -194,6 +194,15 @@ function findRepairTarget(snapshot: ColonySnapshot, constants: SnapshotConstants
     if (structure.structureType === constants.STRUCTURE_ROAD) return structure.hits / structure.hitsMax < 0.35;
     return structure.hits / structure.hitsMax < 0.5;
   });
+}
+
+function actOrMove(
+  creep: AnyCreep,
+  target: unknown,
+  result: number,
+  constants: SnapshotConstants
+): void {
+  if (result === constants.ERR_NOT_IN_RANGE) creep.moveTo?.(target);
 }
 
 function isSource(value: unknown): value is AnySource {
