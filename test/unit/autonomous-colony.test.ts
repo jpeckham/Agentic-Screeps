@@ -430,6 +430,26 @@ describe("colony execution", () => {
     expect(worker.upgradeController).toHaveBeenCalledWith(room.controller);
   });
 
+  test("mostly loaded worker switches to nearby work instead of overharvesting", () => {
+    const worker = createWorker("worker-mostly-loaded", 40);
+    worker.memory.mode = "acquire";
+    worker.pos = createPos(4, 18);
+    const spawn = createSpawn(300);
+    const buildSite = { id: "site-1", structureType: constants.STRUCTURE_EXTENSION, pos: createPos(5, 18) };
+    const room = createRoom({
+      structures: [spawn],
+      creeps: [worker],
+      constructionSites: [buildSite],
+      sources: [{ id: "source-a", pos: createPos(5, 19) }]
+    });
+
+    runWorker(worker, createColonySnapshot(room, constants), constants);
+
+    expect(worker.memory.mode).toBe("work");
+    expect(worker.build).toHaveBeenCalledWith(buildSite);
+    expect(worker.harvest).not.toHaveBeenCalled();
+  });
+
   test("persists source assignments and balances workers across sources", () => {
     const first = createWorker("worker-1", 0);
     const second = createWorker("worker-2", 0);

@@ -57,7 +57,7 @@ function ensureWorkerMemory(creep: AnyCreep, roomName: string): ColonyCreepMemor
 function updateMode(creep: AnyCreep, memory: ColonyCreepMemory, constants: SnapshotConstants): void {
   const free = creep.store?.getFreeCapacity(constants.RESOURCE_ENERGY) ?? 0;
   const used = creep.store?.getUsedCapacity(constants.RESOURCE_ENERGY) ?? 0;
-  if (free === 0) {
+  if (free <= used && used > 0) {
     memory.mode = "work";
     if (memory.assignment?.type === "harvest") delete memory.assignment;
     return;
