@@ -87,7 +87,7 @@ function acquireEnergy(
   const source = chooseSource(creep, snapshot, memory);
   if (source && creep.harvest && hasLivePart(creep, constants.WORK) && hasLivePart(creep, constants.CARRY)) {
     memory.assignment = { type: "harvest", ...(source.id ? { sourceId: source.id } : {}) };
-    actOrMove(creep, source, creep.harvest(source), constants);
+    harvestOrMove(creep, source, snapshot, creep.harvest(source), constants);
     return true;
   }
   return false;
@@ -293,6 +293,42 @@ function actOrMove(
   if (result === constants.ERR_NOT_IN_RANGE) creep.moveTo?.(target);
 }
 
+function harvestOrMove(
+  creep: AnyCreep,
+  source: AnySource,
+  snapshot: ColonySnapshot,
+  result: number,
+  constants: SnapshotConstants
+): void {
+  if (result !== constants.ERR_NOT_IN_RANGE) return;
+  const target = rangeBetween(creep.pos, source.pos) <= 3
+    ? openSourceAccessTarget(creep, source, snapshot) ?? source
+    : source;
+  creep.moveTo?.(target);
+}
+
+function openSourceAccessTarget(
+  creep: AnyCreep,
+  source: AnySource,
+  snapshot: ColonySnapshot
+): { pos: { x: number; y: number; roomName?: string } } | undefined {
+  if (!source.pos) return undefined;
+  const occupied = new Set<string>();
+  for (const other of [
+    ...snapshot.creeps,
+    ...snapshot.spawns,
+    ...snapshot.energyStructures
+  ]) {
+    if (other !== creep && other.pos) occupied.add(positionKey(other.pos.x, other.pos.y));
+  }
+  return adjacentPositions(source.pos.x, source.pos.y)
+    .filter(([x, y]) => !isWall(snapshot, x, y) && !occupied.has(positionKey(x, y)))
+    .sort((left, right) =>
+      rangeBetween(creep.pos, { x: left[0], y: left[1] }) - rangeBetween(creep.pos, { x: right[0], y: right[1] })
+    )
+    .map(([x, y]) => ({ pos: { x, y, roomName: source.pos?.roomName ?? snapshot.roomName } }))[0];
+}
+
 function canSpendWorkEnergy(creep: AnyCreep, constants: SnapshotConstants): boolean {
   return hasLivePart(creep, constants.WORK) && hasLivePart(creep, constants.CARRY);
 }
@@ -318,6 +354,29 @@ function nearestSourceWithin(creep: AnyCreep, sources: AnySource[], range: numbe
 function rangeBetween(left: { x: number; y: number } | undefined, right: { x: number; y: number } | undefined): number {
   if (!left || !right) return Number.POSITIVE_INFINITY;
   return Math.max(Math.abs(left.x - right.x), Math.abs(left.y - right.y));
+}
+
+function isWall(snapshot: ColonySnapshot, x: number, y: number): boolean {
+  const terrain = snapshot.room.getTerrain?.().get(x, y);
+  if (terrain === "wall") return true;
+  return typeof terrain === "number" && (terrain & 1) !== 0;
+}
+
+function adjacentPositions(x: number, y: number): Array<[number, number]> {
+  return [
+    [x - 1, y - 1],
+    [x, y - 1],
+    [x + 1, y - 1],
+    [x - 1, y],
+    [x + 1, y],
+    [x - 1, y + 1],
+    [x, y + 1],
+    [x + 1, y + 1]
+  ];
+}
+
+function positionKey(x: number, y: number): string {
+  return `${x},${y}`;
 }
 
 function isSource(value: unknown): value is AnySource {
