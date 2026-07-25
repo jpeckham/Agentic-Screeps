@@ -70,7 +70,13 @@ export function runColony(options: ColonyRunOptions): void {
   const expiringWorkers = snapshot.workers.filter((creep) =>
     hasWorkAndCarry(creep) && (creep.ticksToLive ?? 1500) <= config.replacementTtlThreshold
   );
-  const replacementCount = snapshot.workers.filter((creep) => typeof creep.memory?.["replacing"] === "string").length;
+  const replacingNames = new Set(
+    snapshot.workers
+      .map((creep) => creep.memory?.["replacing"])
+      .filter((name): name is string => typeof name === "string")
+  );
+  const replacementCount = replacingNames.size;
+  const replacementTarget = expiringWorkers.find((creep) => !replacingNames.has(creep.name));
   const plan = planWorkforce({
     roomName: room.name,
     rcl: snapshot.rcl,
@@ -85,7 +91,10 @@ export function runColony(options: ColonyRunOptions): void {
   memory.workforceTarget = plan.desiredWorkers;
   updateEmergencyState(memory, plan.emergency, viableWorkers.length === 0 ? "no viable workers" : "critical workers expiring", options.log);
 
-  spawnFromPlan(snapshot, memory, plan.spawnRequest, options);
+  const spawnRequest = plan.spawnRequest && plan.spawnRequest.role === "worker" && replacementTarget
+    ? { ...plan.spawnRequest, replacing: replacementTarget.name }
+    : plan.spawnRequest;
+  spawnFromPlan(snapshot, memory, spawnRequest, options);
 
   for (const creep of snapshot.workers) {
     runWorker(creep, snapshot, options.constants);
@@ -101,13 +110,17 @@ export function runColony(options: ColonyRunOptions): void {
 
   const visualsEnabled = ("config" in options.memory ? options.memory.config?.visualsEnabled : undefined) ?? config.visualsEnabled;
   if (visualsEnabled && (options.cpu.bucket ?? 10000) >= config.lowCpuBucket) {
-    drawRoomStatusVisual({
-      snapshot,
-      memory,
-      workers: snapshot.workers.length,
-      desiredWorkers: plan.desiredWorkers,
-      cpuUsed: options.cpu.getUsed() - cpuStart
-    });
+    try {
+      drawRoomStatusVisual({
+        snapshot,
+        memory,
+        workers: snapshot.workers.length,
+        desiredWorkers: plan.desiredWorkers,
+        cpuUsed: options.cpu.getUsed() - cpuStart
+      });
+    } catch (error) {
+      options.log(`[colony ${memory.roomName}] visual telemetry failed: ${error instanceof Error ? error.message : String(error)}`);
+    }
   }
 }
 

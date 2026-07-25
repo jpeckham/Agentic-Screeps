@@ -120,7 +120,9 @@ export function createColonySnapshot(room: AnyRoom, constants: SnapshotConstants
     [
       constants.STRUCTURE_SPAWN,
       constants.STRUCTURE_EXTENSION,
-      constants.STRUCTURE_TOWER
+      constants.STRUCTURE_TOWER,
+      constants.STRUCTURE_CONTAINER,
+      constants.STRUCTURE_STORAGE
     ].includes(structure.structureType ?? "")
   );
   const damagedStructures = allStructures.filter((structure) =>

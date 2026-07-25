@@ -99,6 +99,22 @@ function createSpawn(energy = 300) {
   };
 }
 
+function createEnergyStructure(
+  structureType: string,
+  energy: number,
+  capacity = 200
+) {
+  return {
+    id: `${structureType}-1`,
+    structureType,
+    pos: createPos(21, 20),
+    store: {
+      getFreeCapacity: vi.fn(() => capacity - energy),
+      getUsedCapacity: vi.fn(() => energy)
+    }
+  };
+}
+
 function createWorker(name: string, energy: number, ttl = 1500) {
   const memory: Record<string, unknown> = {};
   return {
@@ -214,6 +230,96 @@ describe("colony execution", () => {
 
     expect(worker.upgradeController).toHaveBeenCalledWith(room.controller);
   });
+
+  test("tags expiring worker replacements and avoids duplicate replacement spawns", () => {
+    const expiring = createWorker("worker-old", 50, 100);
+    const healthy = createWorker("worker-healthy", 50, 1400);
+    const spawn = createSpawn(550);
+    const room = createRoom({
+      structures: [spawn],
+      creeps: [expiring, healthy],
+      energyAvailable: 550,
+      energyCapacityAvailable: 550
+    });
+    const memory = createInitialColonyMemory("W1N1", 2, 15);
+
+    runColony({
+      game: { time: 15, rooms: { W1N1: room }, creeps: { "worker-old": expiring, "worker-healthy": healthy } },
+      memory,
+      constants,
+      log: vi.fn(),
+      cpu: { getUsed: () => 1, bucket: 10000 }
+    });
+
+    expect(spawn.spawnCreep).toHaveBeenCalledWith(
+      expect.any(Array),
+      expect.stringMatching(/^worker-/),
+      expect.objectContaining({
+        memory: expect.objectContaining({ replacing: "worker-old" })
+      })
+    );
+
+    spawn.spawnCreep.mockClear();
+    const replacement = createWorker("worker-new", 0);
+    replacement.memory.replacing = "worker-old";
+    const replacementRoom = createRoom({
+      structures: [spawn],
+      creeps: [expiring, healthy, replacement],
+      energyAvailable: 550,
+      energyCapacityAvailable: 550
+    });
+    runColony({
+      game: {
+        time: 16,
+        rooms: { W1N1: replacementRoom },
+        creeps: { "worker-old": expiring, "worker-healthy": healthy, "worker-new": replacement }
+      },
+      memory,
+      constants,
+      log: vi.fn(),
+      cpu: { getUsed: () => 1, bucket: 10000 }
+    });
+
+    expect(spawn.spawnCreep).not.toHaveBeenCalled();
+  });
+
+  test("withdraws from containers before harvesting sources", () => {
+    const worker = createWorker("worker-1", 0);
+    const container = createEnergyStructure(constants.STRUCTURE_CONTAINER, 150);
+    const room = createRoom({ structures: [createSpawn(), container], creeps: [worker] });
+    const memory = createInitialColonyMemory("W1N1", 2, 20);
+
+    runColony({
+      game: { time: 20, rooms: { W1N1: room }, creeps: { "worker-1": worker } },
+      memory,
+      constants,
+      log: vi.fn(),
+      cpu: { getUsed: () => 1, bucket: 10000 }
+    });
+
+    expect(worker.withdraw).toHaveBeenCalledWith(container, "energy");
+    expect(worker.harvest).not.toHaveBeenCalled();
+  });
+
+  test("visual telemetry failures do not stop creep execution", () => {
+    const worker = createWorker("worker-1", 0);
+    const room = createRoom({ structures: [createSpawn()], creeps: [worker] });
+    room.visual.text = vi.fn(() => {
+      throw new Error("visual failed");
+    });
+    const memory = createInitialColonyMemory("W1N1", 1, 30);
+
+    expect(() =>
+      runColony({
+        game: { time: 30, rooms: { W1N1: room }, creeps: { "worker-1": worker } },
+        memory,
+        constants,
+        log: vi.fn(),
+        cpu: { getUsed: () => 1, bucket: 10000 }
+      })
+    ).not.toThrow();
+    expect(worker.harvest).toHaveBeenCalled();
+  });
 });
 
 describe("construction and tower policy", () => {
@@ -227,6 +333,24 @@ describe("construction and tower policy", () => {
       .toEqual(expect.objectContaining({ structureType: "tower" }));
   });
 
+  test("plans containers and RCL4 storage after critical extension and tower demand", () => {
+    const extensions = Array.from({ length: 10 }, (_, index) =>
+      createEnergyStructure(constants.STRUCTURE_EXTENSION, 0, 50 + index)
+    );
+    const tower = createEnergyStructure(constants.STRUCTURE_TOWER, 500, 1000);
+    const rcl3Room = createRoom({ rcl: 3, structures: [createSpawn(), tower, ...extensions] });
+    expect(planConstruction(createColonySnapshot(rcl3Room, constants), createInitialColonyMemory("W1N1", 3, 1), constants, 1))
+      .toEqual(expect.objectContaining({ structureType: "container" }));
+
+    const containers = [
+      createEnergyStructure(constants.STRUCTURE_CONTAINER, 0),
+      createEnergyStructure(constants.STRUCTURE_CONTAINER, 0)
+    ];
+    const rcl4Room = createRoom({ rcl: 4, structures: [createSpawn(), tower, ...extensions, ...containers] });
+    expect(planConstruction(createColonySnapshot(rcl4Room, constants), createInitialColonyMemory("W1N1", 4, 1), constants, 1))
+      .toEqual(expect.objectContaining({ structureType: "storage" }));
+  });
+
   test("tower attacks hostiles before healing or repairs and preserves reserve", () => {
     const hostile = { id: "hostile" };
     const tower = {
@@ -238,6 +362,26 @@ describe("construction and tower policy", () => {
 
     runTower({ tower, hostiles: [hostile], injuredFriendlies: [], repairTargets: [], constants, reserve: 500 });
     expect(tower.attack).toHaveBeenCalledWith(hostile);
+    expect(tower.repair).not.toHaveBeenCalled();
+  });
+
+  test("tower heals before repair and does not repair below reserve", () => {
+    const injured = { id: "friendly", hits: 50, hitsMax: 100 };
+    const repairTarget = { id: "road", hits: 10, hitsMax: 500 };
+    const tower = {
+      store: { getUsedCapacity: vi.fn(() => 900) },
+      attack: vi.fn(),
+      heal: vi.fn(),
+      repair: vi.fn()
+    };
+
+    runTower({ tower, hostiles: [], injuredFriendlies: [injured], repairTargets: [repairTarget], constants, reserve: 500 });
+    expect(tower.heal).toHaveBeenCalledWith(injured);
+    expect(tower.repair).not.toHaveBeenCalled();
+
+    tower.heal.mockClear();
+    tower.store.getUsedCapacity.mockReturnValue(400);
+    runTower({ tower, hostiles: [], injuredFriendlies: [], repairTargets: [repairTarget], constants, reserve: 500 });
     expect(tower.repair).not.toHaveBeenCalled();
   });
 });

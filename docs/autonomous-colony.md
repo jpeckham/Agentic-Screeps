@@ -52,9 +52,15 @@ colony for construction replanning.
   sources.
 - Loaded workers refill spawn/extensions/towers, build critical sites, prevent
   downgrade, build normal sites, upgrade, then perform bounded repairs.
+- Expiring workers receive tagged replacement spawns so duplicate replacement
+  requests are avoided.
 - RCL 2 plans extensions incrementally.
 - RCL 3 plans the first tower.
+- RCL 3 can plan source containers after extension and tower demand is handled.
+- Early RCL 4 can plan storage after critical lower-RCL infrastructure is
+  present.
 - Towers attack hostiles before healing or repair and preserve an energy reserve.
+- Visual telemetry failures are logged and do not stop colony execution.
 - Room visuals show RCL, mode, energy, workers, build sites, CPU, and release.
 
 ## Known Limitations
@@ -62,7 +68,7 @@ colony for construction replanning.
 - A spawn with less than 200 stored energy and no living worker cannot recover.
 - Construction placement is intentionally simple and local to the spawn; it is
   not a mature bunker planner.
-- Roads, containers, and RCL 4 storage planning remain minimal.
+- Roads remain minimal.
 - Worker source balancing is simple and will need refinement for remote mining
   or high-traffic rooms.
 - CPU telemetry is lightweight; there is no full observability platform.
