@@ -611,6 +611,21 @@ describe("construction and tower policy", () => {
     expect(tower.repair).not.toHaveBeenCalled();
   });
 
+  test("tower repairs important infrastructure before roads", () => {
+    const road = { id: "road", structureType: constants.STRUCTURE_ROAD, hits: 50, hitsMax: 500 };
+    const spawn = { id: "spawn", structureType: constants.STRUCTURE_SPAWN, hits: 1000, hitsMax: 5000 };
+    const tower = {
+      store: { getUsedCapacity: vi.fn(() => 900) },
+      attack: vi.fn(),
+      heal: vi.fn(),
+      repair: vi.fn()
+    };
+
+    runTower({ tower, hostiles: [], injuredFriendlies: [], repairTargets: [road, spawn], constants, reserve: 500 });
+
+    expect(tower.repair).toHaveBeenCalledWith(spawn);
+  });
+
   test("colony snapshot passes injured friendly creeps to towers", () => {
     const tower = createTower();
     const injured = { ...createWorker("worker-injured", 50), hits: 40, hitsMax: 100 };

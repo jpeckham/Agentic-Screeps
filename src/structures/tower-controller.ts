@@ -9,6 +9,10 @@ export interface TowerLike {
   repair(target: unknown): number;
 }
 
+interface RepairTarget {
+  structureType?: string;
+}
+
 export function runTower(options: {
   tower: TowerLike;
   hostiles: unknown[];
@@ -30,8 +34,21 @@ export function runTower(options: {
   }
 
   const energy = options.tower.store?.getUsedCapacity(options.constants.RESOURCE_ENERGY) ?? 0;
-  const repairTarget = options.repairTargets[0];
+  const repairTarget = [...options.repairTargets].sort(
+    (left, right) => repairPriority(left) - repairPriority(right)
+  )[0];
   if (repairTarget && energy > options.reserve) {
     options.tower.repair(repairTarget);
   }
+}
+
+function repairPriority(target: unknown): number {
+  const structureType = (target as RepairTarget | undefined)?.structureType;
+  if (structureType === "spawn") return 0;
+  if (structureType === "tower") return 1;
+  if (structureType === "extension") return 2;
+  if (structureType === "container") return 3;
+  if (structureType === "storage") return 4;
+  if (structureType === "road") return 5;
+  return 6;
 }
