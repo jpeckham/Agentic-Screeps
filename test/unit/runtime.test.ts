@@ -27,7 +27,7 @@ describe("runtime safety", () => {
     expect(memory.runtime.lastHealthyTick).toBe(101);
     expect(memory.runtime.healthyTicks).toBe(1);
     expect(memory.runtime.consecutiveTopLevelFailures).toBe(0);
-    expect(runSurvivalLoop).toHaveBeenCalledOnce();
+    expect(runSurvivalLoop).not.toHaveBeenCalled();
   });
 
   test("top-level failure invokes survival loop and repeated failures enable degraded mode", () => {

@@ -30,14 +30,11 @@ export interface LoopDependencies {
 export function createLoop(dependencies: LoopDependencies): () => void {
   return () => {
     const tick = dependencies.getTick();
-    let survivalAttempted = false;
     dependencies.memory.runtime ??= createInitialReleaseState(BUILD_INFO.releaseId, tick);
     beginTick(dependencies.memory.runtime, { version: BUILD_INFO.releaseId, tick });
 
     try {
       dependencies.runNormalEmpireLoop();
-      survivalAttempted = true;
-      dependencies.runSurvivalLoop();
       recordHealthyTick(dependencies.memory.runtime, {
         tick,
         ...(dependencies.config?.recoverAfterHealthyTicks
@@ -55,7 +52,7 @@ export function createLoop(dependencies: LoopDependencies): () => void {
       dependencies.log(
         `Runtime failure in ${BUILD_INFO.releaseId} at tick ${tick}; entering survival loop.`
       );
-      if (!survivalAttempted) dependencies.runSurvivalLoop();
+      dependencies.runSurvivalLoop();
     } finally {
       endTick();
     }
