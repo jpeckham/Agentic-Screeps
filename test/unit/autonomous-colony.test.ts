@@ -501,7 +501,14 @@ describe("construction and tower policy", () => {
       createEnergyStructure(constants.STRUCTURE_CONTAINER, 0),
       createEnergyStructure(constants.STRUCTURE_CONTAINER, 0)
     ];
-    const rcl4Room = createRoom({ rcl: 4, structures: [createSpawn(), tower, ...extensions, ...containers] });
+    const earlyRcl4Room = createRoom({ rcl: 4, structures: [createSpawn(), tower, ...extensions, ...containers] });
+    expect(planConstruction(createColonySnapshot(earlyRcl4Room, constants), createInitialColonyMemory("W1N1", 4, 1), constants, 1))
+      .toEqual(expect.objectContaining({ structureType: "extension" }));
+
+    const rcl4Extensions = Array.from({ length: 20 }, (_, index) =>
+      createEnergyStructure(constants.STRUCTURE_EXTENSION, 0, 50 + index)
+    );
+    const rcl4Room = createRoom({ rcl: 4, structures: [createSpawn(), tower, ...rcl4Extensions, ...containers] });
     expect(planConstruction(createColonySnapshot(rcl4Room, constants), createInitialColonyMemory("W1N1", 4, 1), constants, 1))
       .toEqual(expect.objectContaining({ structureType: "storage" }));
   });

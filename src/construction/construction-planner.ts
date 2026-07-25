@@ -39,7 +39,7 @@ function desiredStructure(snapshot: ColonySnapshot, constants: SnapshotConstants
   }
   if (snapshot.rcl >= 2) {
     const extensions = snapshot.extensions.length + snapshot.constructionSites.filter((site) => site.structureType === constants.STRUCTURE_EXTENSION).length;
-    const target = snapshot.rcl >= 3 ? 10 : 5;
+    const target = extensionTarget(snapshot.rcl);
     if (extensions < target) return constants.STRUCTURE_EXTENSION;
   }
   if (snapshot.rcl >= 4) {
@@ -67,6 +67,12 @@ function countStructuresAndSites(snapshot: ColonySnapshot, structureType: string
   const structureCount = snapshot.energyStructures.filter((structure) => structure.structureType === structureType).length;
   const siteCount = snapshot.constructionSites.filter((site) => site.structureType === structureType).length;
   return structureCount + siteCount;
+}
+
+function extensionTarget(rcl: number): number {
+  if (rcl >= 4) return 20;
+  if (rcl >= 3) return 10;
+  return 5;
 }
 
 function firstOpenNear(
