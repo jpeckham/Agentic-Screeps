@@ -108,6 +108,18 @@ function performWork(
   }
 
   const criticalBuild = findBuildTarget(snapshot, constants, true);
+  if (
+    criticalBuild?.structureType === constants.STRUCTURE_EXTENSION &&
+    extensionBuildSaturated(snapshot, constants) &&
+    snapshot.controller &&
+    creep.upgradeController &&
+    canSpendWorkEnergy(creep, constants)
+  ) {
+    memory.assignment = { type: "upgrade", ...(snapshot.controller.id ? { targetId: snapshot.controller.id } : {}) };
+    actOrMove(creep, snapshot.controller, creep.upgradeController(snapshot.controller), constants);
+    return;
+  }
+
   if (criticalBuild && inRange(creep.pos, criticalBuild.pos, 3) && creep.build && canSpendWorkEnergy(creep, constants)) {
     memory.assignment = { type: "build", ...(criticalBuild.id ? { targetId: criticalBuild.id } : {}) };
     actOrMove(creep, criticalBuild, creep.build(criticalBuild), constants);
@@ -257,6 +269,30 @@ function findBuildTarget(
   return snapshot.constructionSites
     .filter((site) => priorities.includes(site.structureType ?? ""))
     .sort((left, right) => priorities.indexOf(left.structureType ?? "") - priorities.indexOf(right.structureType ?? ""))[0];
+}
+
+function extensionBuildSaturated(snapshot: ColonySnapshot, constants: SnapshotConstants): boolean {
+  const extensionSiteIds = new Set(
+    snapshot.constructionSites
+      .filter((site) => site.structureType === constants.STRUCTURE_EXTENSION && site.id)
+      .map((site) => site.id)
+  );
+  let builders = 0;
+  for (const worker of snapshot.workers) {
+    const assignment = worker.memory?.["assignment"];
+    if (
+      typeof assignment === "object" &&
+      assignment !== null &&
+      "type" in assignment &&
+      assignment.type === "build" &&
+      "targetId" in assignment &&
+      typeof assignment.targetId === "string" &&
+      extensionSiteIds.has(assignment.targetId)
+    ) {
+      builders += 1;
+    }
+  }
+  return builders >= 2;
 }
 
 function controllerNeedsPriority(snapshot: ColonySnapshot, config: WorkerPriorityConfig): boolean {

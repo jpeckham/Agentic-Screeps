@@ -889,6 +889,44 @@ describe("colony execution", () => {
     expect(worker.build).toHaveBeenCalledWith(buildSite);
     expect(worker.upgradeController).not.toHaveBeenCalled();
   });
+
+  test("keeps controller progress while enough workers are already building extensions", () => {
+    const worker = createWorker("worker-upgrade-with-builders", 50);
+    const firstBuilder = createWorker("worker-builder-1", 50);
+    firstBuilder.memory.assignment = { type: "build", targetId: "extension-site-1" };
+    const secondBuilder = createWorker("worker-builder-2", 50);
+    secondBuilder.memory.assignment = { type: "build", targetId: "extension-site-2" };
+    const extensionSites = [
+      { id: "extension-site-1", structureType: constants.STRUCTURE_EXTENSION, pos: createPos(22, 20) },
+      { id: "extension-site-2", structureType: constants.STRUCTURE_EXTENSION, pos: createPos(23, 20) },
+      { id: "extension-site-3", structureType: constants.STRUCTURE_EXTENSION, pos: createPos(24, 20) }
+    ];
+    const room = createRoom({
+      rcl: 2,
+      structures: [createSpawn(300)],
+      creeps: [worker, firstBuilder, secondBuilder],
+      constructionSites: extensionSites
+    });
+
+    runColony({
+      game: {
+        time: 52,
+        rooms: { W1N1: room },
+        creeps: {
+          "worker-upgrade-with-builders": worker,
+          "worker-builder-1": firstBuilder,
+          "worker-builder-2": secondBuilder
+        }
+      },
+      memory: createInitialColonyMemory("W1N1", 2, 52),
+      constants,
+      log: vi.fn(),
+      cpu: { getUsed: () => 1, bucket: 10000 }
+    });
+
+    expect(worker.upgradeController).toHaveBeenCalledWith(room.controller);
+    expect(worker.build).not.toHaveBeenCalled();
+  });
 });
 
 describe("construction and tower policy", () => {
@@ -1764,7 +1802,7 @@ describe("memory, console API, and observability", () => {
     });
 
     expect(log).toHaveBeenCalledWith(
-      "[colony W1N1] status: RCL 2 NORMAL energy 300/550 workers 4/4 assignments H1 D0 U0 B3 R0 sites 1 cpu 0.0"
+      "[colony W1N1] status: RCL 2 NORMAL energy 300/550 workers 4/4 assignments H1 D0 U2 B1 R0 sites 1 cpu 0.0"
     );
     expect(memory.lastStatusLog).toBe(10);
 
