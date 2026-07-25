@@ -95,6 +95,13 @@ function performWork(
     return;
   }
 
+  const criticalRepairTarget = findRepairTarget(snapshot, constants, true);
+  if (criticalRepairTarget && creep.repair) {
+    memory.assignment = { type: "repair", ...(criticalRepairTarget.id ? { targetId: criticalRepairTarget.id } : {}) };
+    actOrMove(creep, criticalRepairTarget, creep.repair(criticalRepairTarget), constants);
+    return;
+  }
+
   const buildTarget = findBuildTarget(snapshot, constants, false);
   if (buildTarget && creep.build) {
     memory.assignment = { type: "build", ...(buildTarget.id ? { targetId: buildTarget.id } : {}) };
@@ -108,7 +115,7 @@ function performWork(
     return;
   }
 
-  const repairTarget = findRepairTarget(snapshot, constants);
+  const repairTarget = findRepairTarget(snapshot, constants, false);
   if (repairTarget && creep.repair) {
     memory.assignment = { type: "repair", ...(repairTarget.id ? { targetId: repairTarget.id } : {}) };
     actOrMove(creep, repairTarget, creep.repair(repairTarget), constants);
@@ -185,14 +192,21 @@ function controllerNeedsPriority(snapshot: ColonySnapshot): boolean {
   return (snapshot.controller?.ticksToDowngrade ?? 99999) < 4000;
 }
 
-function findRepairTarget(snapshot: ColonySnapshot, constants: SnapshotConstants): AnyStructure | undefined {
+function findRepairTarget(
+  snapshot: ColonySnapshot,
+  constants: SnapshotConstants,
+  criticalOnly: boolean
+): AnyStructure | undefined {
   return snapshot.damagedStructures.find((structure) => {
     if (!structure.hits || !structure.hitsMax) return false;
     if (structure.structureType === "constructedWall" || structure.structureType === "rampart") {
-      return structure.hits < 10000;
+      return !criticalOnly && structure.hits < 10000;
     }
-    if (structure.structureType === constants.STRUCTURE_ROAD) return structure.hits / structure.hitsMax < 0.35;
-    return structure.hits / structure.hitsMax < 0.5;
+    if (structure.structureType === constants.STRUCTURE_ROAD) {
+      return !criticalOnly && structure.hits / structure.hitsMax < 0.35;
+    }
+    const ratio = structure.hits / structure.hitsMax;
+    return criticalOnly ? ratio < 0.4 : ratio < 0.5;
   });
 }
 

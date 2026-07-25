@@ -371,6 +371,17 @@ describe("colony execution", () => {
     expect(upgrader.moveTo).toHaveBeenCalledWith(upgradeRoom.controller);
   });
 
+  test("repairs critical infrastructure before routine upgrading", () => {
+    const worker = createWorker("worker-repair", 50);
+    const damagedSpawn = { ...createSpawn(300), hits: 1000, hitsMax: 5000 };
+    const room = createRoom({ structures: [damagedSpawn], creeps: [worker] });
+
+    runWorker(worker, createColonySnapshot(room, constants), constants);
+
+    expect(worker.repair).toHaveBeenCalledWith(damagedSpawn);
+    expect(worker.upgradeController).not.toHaveBeenCalled();
+  });
+
   test("visual telemetry failures do not stop creep execution", () => {
     const worker = createWorker("worker-1", 0);
     const room = createRoom({ structures: [createSpawn()], creeps: [worker] });
