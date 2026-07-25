@@ -468,6 +468,25 @@ describe("colony execution", () => {
     expect(worker.transfer).not.toHaveBeenCalledWith(tower, "energy");
   });
 
+  test("honors configured tower energy reserve for worker refills", () => {
+    const worker = createWorker("worker-tower-reserve", 50);
+    const spawn = createSpawn(300);
+    const tower = createTower(600);
+    const room = createRoom({ structures: [spawn, tower], creeps: [worker] });
+
+    runColony({
+      game: { time: 46, rooms: { W1N1: room }, creeps: { "worker-tower-reserve": worker } },
+      memory: createInitialColonyMemory("W1N1", 3, 46),
+      constants,
+      log: vi.fn(),
+      cpu: { getUsed: () => 1, bucket: 10000 },
+      config: { towerEnergyReserve: 700 }
+    });
+
+    expect(worker.transfer).toHaveBeenCalledWith(tower, "energy");
+    expect(worker.upgradeController).not.toHaveBeenCalled();
+  });
+
   test("does not attempt work actions without required live body parts", () => {
     const noWorkHarvester = createWorker("worker-no-work", 0);
     noWorkHarvester.body = [{ type: constants.CARRY }, { type: constants.MOVE }];

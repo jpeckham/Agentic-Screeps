@@ -13,13 +13,15 @@ export interface WorkerPriorityConfig {
   repairThreshold: number;
   roadRepairThreshold: number;
   wallStarterThreshold: number;
+  towerEnergyReserve: number;
 }
 
 const DEFAULT_WORKER_PRIORITY_CONFIG: WorkerPriorityConfig = {
   controllerEmergencyThreshold: 4000,
   repairThreshold: 0.5,
   roadRepairThreshold: 0.35,
-  wallStarterThreshold: 10000
+  wallStarterThreshold: 10000,
+  towerEnergyReserve: 500
 };
 
 export function runWorker(
@@ -98,7 +100,7 @@ function performWork(
   memory: ColonyCreepMemory,
   config: WorkerPriorityConfig
 ): void {
-  const refillTarget = findRefillTarget(snapshot, constants);
+  const refillTarget = findRefillTarget(snapshot, constants, config);
   if (refillTarget && creep.transfer && hasLivePart(creep, constants.CARRY)) {
     memory.assignment = { type: "deliver", ...(refillTarget.id ? { targetId: refillTarget.id } : {}) };
     actOrMove(creep, refillTarget, creep.transfer(refillTarget, constants.RESOURCE_ENERGY), constants);
@@ -182,20 +184,28 @@ function chooseSource(
   return snapshot.sources[0];
 }
 
-function findRefillTarget(snapshot: ColonySnapshot, constants: SnapshotConstants): AnyStructure | undefined {
+function findRefillTarget(
+  snapshot: ColonySnapshot,
+  constants: SnapshotConstants,
+  config: WorkerPriorityConfig
+): AnyStructure | undefined {
   const priorities = [
     constants.STRUCTURE_SPAWN,
     constants.STRUCTURE_EXTENSION,
     constants.STRUCTURE_TOWER
   ];
   return snapshot.energyStructures
-    .filter((structure) => needsEnergy(structure, constants))
+    .filter((structure) => needsEnergy(structure, constants, config))
     .sort((left, right) =>
       priorities.indexOf(left.structureType ?? "") - priorities.indexOf(right.structureType ?? "")
     )[0];
 }
 
-function needsEnergy(structure: AnyStructure, constants: SnapshotConstants): boolean {
+function needsEnergy(
+  structure: AnyStructure,
+  constants: SnapshotConstants,
+  config: WorkerPriorityConfig
+): boolean {
   if (![
     constants.STRUCTURE_SPAWN,
     constants.STRUCTURE_EXTENSION,
@@ -206,7 +216,7 @@ function needsEnergy(structure: AnyStructure, constants: SnapshotConstants): boo
   const free = structure.store?.getFreeCapacity(constants.RESOURCE_ENERGY) ?? 0;
   if (free <= 0) return false;
   if (structure.structureType === constants.STRUCTURE_TOWER) {
-    return (structure.store?.getUsedCapacity(constants.RESOURCE_ENERGY) ?? 0) < 500;
+    return (structure.store?.getUsedCapacity(constants.RESOURCE_ENERGY) ?? 0) < config.towerEnergyReserve;
   }
   return true;
 }
