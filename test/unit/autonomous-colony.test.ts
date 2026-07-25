@@ -728,6 +728,111 @@ describe("construction and tower policy", () => {
 });
 
 describe("integration scenarios", () => {
+  test("scenario A: fresh RCL1 room bootstraps workers and upgrades controller", () => {
+    const log = vi.fn();
+    const memory = createInitialColonyMemory("W1N1", 1, 60);
+    const bootstrapSpawn = createSpawn(300);
+    const bootstrapRoom = createRoom({
+      rcl: 1,
+      structures: [bootstrapSpawn],
+      energyAvailable: 300,
+      energyCapacityAvailable: 300
+    });
+
+    runColony({
+      game: { time: 60, rooms: { W1N1: bootstrapRoom }, creeps: {} },
+      memory,
+      constants,
+      log,
+      cpu: { getUsed: () => 1, bucket: 10000 }
+    });
+
+    expect(bootstrapSpawn.spawnCreep).toHaveBeenCalledWith(
+      ["work", "carry", "move"],
+      expect.stringMatching(/^emergency-worker-/),
+      expect.objectContaining({
+        memory: expect.objectContaining({ colony: "W1N1", role: "emergency-worker", mode: "acquire" })
+      })
+    );
+
+    const harvester = createWorker("emergency-worker-60", 0);
+    harvester.memory.role = "emergency-worker";
+    harvester.memory.mode = "acquire";
+    const harvestRoom = createRoom({ rcl: 1, structures: [createSpawn(300)], creeps: [harvester] });
+
+    runColony({
+      game: { time: 61, rooms: { W1N1: harvestRoom }, creeps: { "emergency-worker-60": harvester } },
+      memory,
+      constants,
+      log,
+      cpu: { getUsed: () => 1, bucket: 10000 }
+    });
+
+    expect(harvester.harvest).toHaveBeenCalledWith(expect.objectContaining({ id: "source-a" }));
+
+    const refiller = createWorker("emergency-worker-60", 50);
+    refiller.memory.role = "emergency-worker";
+    refiller.memory.mode = "work";
+    const needySpawn = createSpawn(0);
+    const refillRoom = createRoom({ rcl: 1, structures: [needySpawn], creeps: [refiller], energyAvailable: 0 });
+
+    runColony({
+      game: { time: 62, rooms: { W1N1: refillRoom }, creeps: { "emergency-worker-60": refiller } },
+      memory,
+      constants,
+      log,
+      cpu: { getUsed: () => 1, bucket: 10000 }
+    });
+
+    expect(refiller.transfer).toHaveBeenCalledWith(needySpawn, "energy");
+
+    const spawn = createSpawn(300);
+    const existingWorkers = [
+      createWorker("worker-1", 0),
+      createWorker("worker-2", 0)
+    ];
+    const growthRoom = createRoom({
+      rcl: 1,
+      structures: [spawn],
+      creeps: existingWorkers,
+      energyAvailable: 300,
+      energyCapacityAvailable: 300
+    });
+
+    runColony({
+      game: {
+        time: 63,
+        rooms: { W1N1: growthRoom },
+        creeps: Object.fromEntries(existingWorkers.map((worker) => [worker.name, worker]))
+      },
+      memory,
+      constants,
+      log,
+      cpu: { getUsed: () => 1, bucket: 10000 }
+    });
+
+    expect(spawn.spawnCreep).toHaveBeenCalledWith(
+      expect.arrayContaining(["work", "carry", "move"]),
+      expect.stringMatching(/^worker-/),
+      expect.objectContaining({ memory: expect.objectContaining({ role: "worker" }) })
+    );
+
+    const upgrader = createWorker("worker-upgrader", 50);
+    upgrader.memory.role = "worker";
+    upgrader.memory.mode = "work";
+    const upgradeRoom = createRoom({ rcl: 1, structures: [createSpawn(300)], creeps: [upgrader] });
+
+    runColony({
+      game: { time: 64, rooms: { W1N1: upgradeRoom }, creeps: { "worker-upgrader": upgrader } },
+      memory,
+      constants,
+      log,
+      cpu: { getUsed: () => 1, bucket: 10000 }
+    });
+
+    expect(upgrader.upgradeController).toHaveBeenCalledWith(upgradeRoom.controller);
+  });
+
   test("scenario B: total workforce death enters emergency and rebuilds normal operation", () => {
     const log = vi.fn();
     const memory = createInitialColonyMemory("W1N1", 2, 70);
