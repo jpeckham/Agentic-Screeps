@@ -61,7 +61,14 @@ colony for construction replanning.
   present.
 - Towers attack hostiles before healing or repair and preserve an energy reserve.
 - Visual telemetry failures are logged and do not stop colony execution.
-- Room visuals show RCL, mode, energy, workers, build sites, CPU, and release.
+- Room visuals show RCL, mode, energy, workers, assignment counts, build sites,
+  CPU, and release.
+- Console status telemetry is interval-gated by `statusLogInterval` and records
+  RCL, mode, energy, worker counts, assignment counts, construction site count,
+  and CPU without logging every tick.
+- Deterministic integration-style tests cover Scenario A through Scenario E from
+  the implementation prompt: fresh RCL 1 bootstrap, total workforce death,
+  RCL 2 transition, RCL 3 transition, and expiring worker replacement.
 
 ## Known Limitations
 

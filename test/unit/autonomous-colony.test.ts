@@ -10,6 +10,7 @@ import { planConstruction } from "../../src/construction/construction-planner.js
 import { runTower } from "../../src/structures/tower-controller.js";
 import { cleanupDeadCreepMemory } from "../../src/memory/creep-cleanup.js";
 import { createAiConsole } from "../../src/colony/console-api.js";
+import { drawRoomStatusVisual } from "../../src/visualization/room-status-visual.js";
 
 const constants = {
   WORK: "work",
@@ -1213,6 +1214,40 @@ describe("integration scenarios", () => {
 });
 
 describe("memory, console API, and observability", () => {
+  test("room visual includes compact assignment counts", () => {
+    const harvester = createWorker("worker-harvest", 0);
+    harvester.memory.assignment = { type: "harvest", sourceId: "source-a" };
+    const deliverer = createWorker("worker-deliver", 50);
+    deliverer.memory.assignment = { type: "deliver", targetId: "spawn-1" };
+    const upgrader = createWorker("worker-upgrade", 50);
+    upgrader.memory.assignment = { type: "upgrade", targetId: "controller" };
+    const builder = createWorker("worker-build", 50);
+    builder.memory.assignment = { type: "build", targetId: "site-1" };
+    const repairer = createWorker("worker-repair", 50);
+    repairer.memory.assignment = { type: "repair", targetId: "road-1" };
+    const room = createRoom({
+      rcl: 2,
+      structures: [createSpawn(300)],
+      creeps: [harvester, deliverer, upgrader, builder, repairer]
+    });
+    const memory = createInitialColonyMemory("W1N1", 2, 1);
+
+    drawRoomStatusVisual({
+      snapshot: createColonySnapshot(room, constants),
+      memory,
+      workers: 5,
+      desiredWorkers: 5,
+      cpuUsed: 1.4
+    });
+
+    expect(room.visual.text).toHaveBeenCalledWith(
+      expect.stringContaining("Assignments:\nHarvest 1\nDeliver 1\nUpgrade 1\nBuild 1\nRepair 1"),
+      expect.any(Number),
+      expect.any(Number),
+      expect.any(Object)
+    );
+  });
+
   test("logs concise colony status only at the configured interval", () => {
     const harvester = createWorker("worker-1", 0);
     const deliverer = createWorker("worker-2", 50);
