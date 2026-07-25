@@ -20,7 +20,9 @@ const uploadedNames = Object.keys(uploaded).sort();
 const expectedNames = Object.keys(modules).sort();
 const missingNames = expectedNames.filter((name) => !uploadedNames.includes(name));
 if (missingNames.length > 0) {
-  throw new Error("Live deploy verification failed: module list mismatch.");
+  throw new Error(
+    `Live deploy verification failed: missing modules ${JSON.stringify(missingNames)}; uploaded modules ${JSON.stringify(uploadedNames)}.`
+  );
 }
 if (!uploaded[manifest.entryModule]) {
   throw new Error(`Live deploy verification failed: missing "${manifest.entryModule}".`);

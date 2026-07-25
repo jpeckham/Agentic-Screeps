@@ -39,7 +39,9 @@ async function verifyRemoteCandidate(
   const expectedNames = Object.keys(options.modules).sort();
   const missingNames = expectedNames.filter((name) => !uploadedNames.includes(name));
   if (missingNames.length > 0 || (!verification.allowExtraModules && JSON.stringify(uploadedNames) !== JSON.stringify(expectedNames))) {
-    throw new Error("Remote candidate could not be verified: module list mismatch.");
+    throw new Error(
+      `Remote candidate could not be verified: module list mismatch. Missing ${JSON.stringify(missingNames)}; uploaded ${JSON.stringify(uploadedNames)}.`
+    );
   }
   if (!(options.entryModule in uploaded)) {
     throw new Error("Remote candidate could not be verified: entry module missing.");
