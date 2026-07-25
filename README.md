@@ -1,10 +1,10 @@
 # Agentic Screeps
 
-Production-safe CI/CD harness for a Screeps AI. Git is the source of truth; live production deployment is intentionally separated from commit and push.
+Production-safe CI/CD harness for a Screeps AI. Git is the source of truth; `main` is the production gate.
 
 ## Intended Flow
 
-Pushing code does **not** deploy to the live Screeps environment.
+Pushing directly to `main`, or merging a pull request into `main`, deploys to the remote Screeps branch `agentic` after verification passes.
 
 The production path is:
 
@@ -13,11 +13,10 @@ The production path is:
 3. Open a pull request.
 4. Let the pull request workflow run typecheck, lint, tests, coverage, build, manifest verification, and artifact upload.
 5. Merge to `main` after required checks pass.
-6. Let the release candidate workflow build one immutable artifact.
-7. Manually dispatch the production deploy workflow with the existing artifact details.
-8. Approve the protected `screeps-production` GitHub Environment.
-9. The workflow uploads to an inactive Screeps release branch, verifies it, records the previous active branch, then activates the new branch.
-10. Roll back only through the explicit rollback workflow and an explicit target branch.
+6. The `Auto Deploy` workflow runs `npm run verify`.
+7. The workflow uploads the immutable `dist/` artifact for inspection.
+8. The workflow uploads the verified artifact to Screeps branch `agentic`.
+9. Roll back only through the explicit rollback workflow and an explicit target branch.
 
 ## One-Time Setup
 
@@ -29,12 +28,11 @@ npm ci
 
 Configure GitHub:
 
-1. Create a `screeps-candidate` environment.
-2. Create a `screeps-production` environment.
-3. Add required reviewers to `screeps-production`.
-4. Add the environment secrets and variables from [Secrets, Variables, And Workflow Inputs](#secrets-variables-and-workflow-inputs).
-5. Optionally enable secret scanning and push protection.
-6. Protect `main` and require the pull request verification check.
+1. Create a `screeps-production` environment.
+2. Add the environment secrets and variables from [Secrets, Variables, And Workflow Inputs](#secrets-variables-and-workflow-inputs).
+3. Optionally enable secret scanning and push protection.
+4. Protect `main` and require the pull request verification check.
+5. Do not require manual reviewers on `screeps-production` if you want true automatic deploy after merge.
 
 Do not put Screeps tokens in source, `.env`, command arguments, URLs, branch names, or build artifacts.
 
@@ -50,7 +48,7 @@ Set environment secrets and variables in GitHub:
 1. Open the repository on GitHub.
 2. Go to **Settings**.
 3. Open **Environments**.
-4. Select `screeps-candidate` or `screeps-production`.
+4. Select `screeps-production`.
 5. Under **Environment secrets**, choose **Add secret**.
 6. Under **Environment variables**, choose **Add variable**.
 
@@ -58,23 +56,22 @@ Required environment secret:
 
 | Name | Type | Where | Value |
 | --- | --- | --- | --- |
-| `SCREEPS_TOKEN` | GitHub Environment secret | `screeps-candidate` if uploading candidates; `screeps-production` for production deploy/rollback | A Screeps auth token. Treat it like a password. It should be narrowly scoped if Screeps supports scoping for your account/API setup. |
+| `SCREEPS_TOKEN` | GitHub Environment secret | `screeps-production` | A Screeps auth token. Treat it like a password. It should be narrowly scoped if Screeps supports scoping for your account/API setup. |
 
 Recommended environment variables:
 
 | Name | Type | Where | Value |
 | --- | --- | --- | --- |
-| `SCREEPS_HOST` | GitHub Environment variable | `screeps-candidate`, `screeps-production` | Screeps API origin URL. For the official MMO, use `https://screeps.com`. |
-| `SCREEPS_SHARD` | GitHub Environment variable | `screeps-candidate`, `screeps-production` | Optional shard label, such as `shard3`. This is currently carried for operator context and future shard-aware behavior. |
+| `SCREEPS_HOST` | GitHub Environment variable | `screeps-production` | Screeps API origin URL. For the official MMO, use `https://screeps.com`. |
+| `SCREEPS_SHARD` | GitHub Environment variable | `screeps-production` | Optional shard label, such as `shard3`. This is currently carried for operator context and future shard-aware behavior. |
 
 Workflow inputs are entered when you click **Run workflow**. They are not stored secrets.
 
 | Workflow | Input | Type | Value |
 | --- | --- | --- | --- |
-| `Release Candidate` | `upload_candidate` | Choice | `false` for build-only; `true` to upload the artifact to an inactive Screeps candidate branch. |
-| `Release Candidate` | `branch` | String | Optional inactive Screeps branch name. Leave blank to use the generated `release-<short-sha>` branch. |
+| `Auto Deploy` | none | none | Runs automatically on pushes to `main`. Manual dispatch is also allowed and uses branch `agentic`. |
 | `Production Deploy` | `artifact_run_id` | String | The GitHub Actions run id that produced the immutable release artifact. |
-| `Production Deploy` | `artifact_name` | String | The artifact name from the release candidate run, such as `screeps-release-6e43144a` or `screeps-release-<full-github-sha>`. |
+| `Production Deploy` | `artifact_name` | String | The artifact name from the auto deploy run, such as `screeps-release-6e43144a` or `screeps-release-<full-github-sha>`. |
 | `Production Deploy` | `target_branch` | String | The inactive Screeps branch to upload/verify/activate, usually `release-<short-sha>`. |
 | `Production Deploy` | `confirmation` | String | Must be exactly `DEPLOY`. |
 | `Production Rollback` | `target_branch` | String | The explicit known-good Screeps branch to activate. Never leave this to guesswork. |
@@ -143,36 +140,33 @@ git push -u origin my-change
 
 Open a pull request on GitHub. The pull request workflow has no Screeps token and cannot deploy production.
 
-## Release Candidate
+## Auto Deploy
 
-After the pull request is merged to `main`, GitHub runs `.github/workflows/release-candidate.yml`.
+After the pull request is merged to `main`, GitHub runs `.github/workflows/release-candidate.yml`, shown in Actions as **Auto Deploy**.
 
 That workflow:
 
 - runs `npm run verify`
 - builds once
 - uploads an immutable `dist/` artifact
-- optionally uploads to an inactive candidate Screeps branch
-- never activates production
+- uploads the verified artifact to Screeps branch `agentic`
 
-To manually create a release candidate in GitHub:
+To manually rerun the same deploy in GitHub:
 
 1. Open **Actions**.
-2. Select **Release Candidate**.
+2. Select **Auto Deploy**.
 3. Choose **Run workflow**.
-4. Leave `upload_candidate` as `false` unless you have configured the `screeps-candidate` environment.
-5. If uploading a candidate, provide an inactive branch name or use the generated `release-<short-sha>` name.
 
 Record from the completed workflow:
 
 - workflow run id
 - artifact name
 - release id
-- candidate branch
+- deployed Screeps branch, always `agentic`
 
 ## Production Deploy
 
-Production deploy is manual only.
+Normal production deploy is automatic on merge to `main`. This manual workflow remains available only for an unusual artifact redeploy or branch-slot deployment.
 
 In GitHub:
 
@@ -186,7 +180,7 @@ In GitHub:
 8. Approve the `screeps-production` environment gate.
 9. Read the workflow summary and confirm the previous active branch and activated branch.
 
-The production deploy workflow does not rebuild. It downloads the existing artifact, verifies hashes, uploads the exact modules to the target branch, verifies the remote candidate, records rollback metadata, and then activates the branch.
+The manual production deploy workflow does not rebuild. It downloads the existing artifact, verifies hashes, uploads the exact modules to the target branch, verifies the remote candidate, records rollback metadata, and then activates the branch.
 
 ## Rollback
 
@@ -208,6 +202,12 @@ Before rollback, check whether Memory schema changes are compatible with the tar
 
 These commands exist so GitHub Actions can reuse the scripts. Do not run them against live production from a workstation.
 
+Upload to the live `agentic` branch:
+
+```bash
+SCREEPS_TOKEN=... SCREEPS_BRANCH=agentic npm run deploy:live
+```
+
 Upload an inactive candidate branch:
 
 ```bash
@@ -226,7 +226,7 @@ Rollback to an explicit branch:
 SCREEPS_TOKEN=... SCREEPS_BRANCH=release-previous CONFIRM_ROLLBACK=ROLLBACK npm run rollback:production
 ```
 
-Prefer the GitHub workflows for any real deployment so approval, artifact immutability, summaries, and rollback metadata are preserved.
+Prefer the GitHub workflow for real deployment so CI verification, artifact immutability, and summaries are preserved.
 
 ## More Documentation
 

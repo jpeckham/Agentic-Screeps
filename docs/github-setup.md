@@ -2,8 +2,9 @@
 
 Create environments:
 
-- `screeps-candidate`: contains candidate-scoped `SCREEPS_TOKEN` if you want optional inactive branch uploads.
-- `screeps-production`: contains production `SCREEPS_TOKEN` and requires reviewer approval.
+- `screeps-production`: contains production `SCREEPS_TOKEN` for auto deploy to Screeps branch `agentic`.
+
+Do not configure required reviewers on `screeps-production` if you want true automatic deploy after merge to `main`. Add reviewers only if you want GitHub to pause the auto deploy job for approval.
 
 Environment variables:
 
@@ -22,3 +23,5 @@ Workflow permissions should default to read-only. The workflows in this repo req
 Create a narrowly scoped Screeps auth token. Store it only as an environment secret named `SCREEPS_TOKEN`; never place it in `.env`, command history, artifact files, branch names, URLs, or logs. Enable secret scanning/push protection if available for the repository.
 
 Production and rollback share the same concurrency group, preventing overlapping activations.
+
+Auto deploy uses concurrency group `screeps-agentic-live`, so pushes to `main` deploy serially.

@@ -1,32 +1,21 @@
-name: Release Candidate
+name: Auto Deploy
 
 on:
   push:
     branches: [main]
   workflow_dispatch:
-    inputs:
-      upload_candidate:
-        description: Upload artifact to inactive Screeps candidate branch
-        required: true
-        default: "false"
-        type: choice
-        options: ["false", "true"]
-      branch:
-        description: Optional inactive Screeps branch name
-        required: false
-        type: string
 
 permissions:
   contents: read
 
 concurrency:
-  group: release-candidate-${{ github.ref }}
-  cancel-in-progress: true
+  group: screeps-agentic-live
+  cancel-in-progress: false
 
 jobs:
-  build:
+  deploy:
     runs-on: ubuntu-latest
-    environment: screeps-candidate
+    environment: screeps-production
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -40,7 +29,7 @@ jobs:
       - name: Install
         run: npm ci
 
-      - name: Verify
+      - name: Verify and build
         run: npm run verify
 
       - name: Read release id
@@ -55,16 +44,16 @@ jobs:
           path: dist/
           if-no-files-found: error
 
-      - name: Upload inactive candidate
-        if: inputs.upload_candidate == 'true'
+      - name: Deploy to Screeps agentic branch
         env:
           SCREEPS_TOKEN: ${{ secrets.SCREEPS_TOKEN }}
           SCREEPS_HOST: ${{ vars.SCREEPS_HOST }}
-          SCREEPS_BRANCH: ${{ inputs.branch || steps.manifest.outputs.release_id }}
+          SCREEPS_BRANCH: agentic
           SCREEPS_SHARD: ${{ vars.SCREEPS_SHARD }}
-        run: npm run deploy:candidate
+        run: npm run deploy:live
 
       - name: Summary
         run: |
           echo "Release: ${{ steps.manifest.outputs.release_id }}" >> "$GITHUB_STEP_SUMMARY"
-          echo "Candidate branch: ${{ inputs.branch || steps.manifest.outputs.release_id }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "Screeps branch: agentic" >> "$GITHUB_STEP_SUMMARY"
+          echo "Main is the production gate; this workflow auto-deployed after verification." >> "$GITHUB_STEP_SUMMARY"

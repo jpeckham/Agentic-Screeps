@@ -11,6 +11,7 @@ import {
 import {
   activateVerifiedRelease,
   deployCandidate,
+  deployLive,
   rollbackToBranch
 } from "../../src/deploy/workflows.js";
 
@@ -125,6 +126,29 @@ describe("deployment workflows", () => {
     });
 
     expect(client.uploadModules).toHaveBeenCalledWith("release-abc12345", {
+      main: "release-abc12345 code"
+    });
+    expect(client.activateBranch).not.toHaveBeenCalled();
+  });
+
+  test("live deployment may upload to the active production branch after verification", async () => {
+    const client = {
+      uploadModules: vi.fn().mockResolvedValue(undefined),
+      getActiveBranch: vi.fn().mockResolvedValue("agentic"),
+      readModules: vi.fn().mockResolvedValue({ main: "release-abc12345 code" }),
+      activateBranch: vi.fn()
+    };
+
+    const result = await deployLive({
+      client,
+      branch: "agentic",
+      modules: { main: "release-abc12345 code" },
+      releaseId: "release-abc12345",
+      entryModule: "main"
+    });
+
+    expect(result.activeBranch).toBe("agentic");
+    expect(client.uploadModules).toHaveBeenCalledWith("agentic", {
       main: "release-abc12345 code"
     });
     expect(client.activateBranch).not.toHaveBeenCalled();

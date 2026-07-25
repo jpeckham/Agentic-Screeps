@@ -28,6 +28,15 @@ export async function deployCandidate(options: ReleaseDeployment): Promise<void>
   await verifyRemoteCandidate(options);
 }
 
+export async function deployLive(
+  options: ReleaseDeployment
+): Promise<{ activeBranch: string; deployedBranch: string }> {
+  const activeBranch = await options.client.getActiveBranch();
+  await options.client.uploadModules(options.branch, options.modules);
+  await verifyRemoteCandidate(options);
+  return { activeBranch, deployedBranch: options.branch };
+}
+
 export async function activateVerifiedRelease(
   options: ReleaseDeployment
 ): Promise<{ previousBranch: string; activatedBranch: string }> {
