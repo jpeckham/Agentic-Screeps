@@ -1107,6 +1107,109 @@ describe("integration scenarios", () => {
     expect(tower.attack).not.toHaveBeenCalled();
     expect(tower.repair).not.toHaveBeenCalled();
   });
+
+  test("scenario E: expiring critical worker gets one replacement while harvesting continues", () => {
+    const log = vi.fn();
+    const memory = createInitialColonyMemory("W1N1", 2, 300);
+    memory.workforceTarget = 4;
+    const expiringHarvester = createWorker("worker-expiring", 0, 100);
+    expiringHarvester.memory.role = "worker";
+    expiringHarvester.memory.mode = "acquire";
+    const stableWorker = createWorker("worker-stable", 0, 1400);
+    stableWorker.memory.role = "worker";
+    stableWorker.memory.mode = "acquire";
+    const spawn = createSpawn(550);
+    const firstRoom = createRoom({
+      rcl: 2,
+      structures: [spawn],
+      creeps: [expiringHarvester, stableWorker],
+      energyAvailable: 550,
+      energyCapacityAvailable: 550
+    });
+
+    runColony({
+      game: {
+        time: 300,
+        rooms: { W1N1: firstRoom },
+        creeps: { "worker-expiring": expiringHarvester, "worker-stable": stableWorker }
+      },
+      memory,
+      constants,
+      log,
+      cpu: { getUsed: () => 1, bucket: 10000 }
+    });
+
+    expect(spawn.spawnCreep).toHaveBeenCalledWith(
+      expect.any(Array),
+      expect.stringMatching(/^worker-/),
+      expect.objectContaining({
+        memory: expect.objectContaining({ replacing: "worker-expiring" })
+      })
+    );
+    expect(expiringHarvester.harvest).toHaveBeenCalled();
+
+    spawn.spawnCreep.mockClear();
+    expiringHarvester.harvest.mockClear();
+    const incomingReplacement = createWorker("worker-300", 0, 1500);
+    incomingReplacement.memory.role = "worker";
+    incomingReplacement.memory.mode = "acquire";
+    incomingReplacement.memory.replacing = "worker-expiring";
+    const secondRoom = createRoom({
+      rcl: 2,
+      structures: [spawn],
+      creeps: [expiringHarvester, stableWorker, incomingReplacement],
+      energyAvailable: 550,
+      energyCapacityAvailable: 550
+    });
+
+    runColony({
+      game: {
+        time: 301,
+        rooms: { W1N1: secondRoom },
+        creeps: {
+          "worker-expiring": expiringHarvester,
+          "worker-stable": stableWorker,
+          "worker-300": incomingReplacement
+        }
+      },
+      memory,
+      constants,
+      log,
+      cpu: { getUsed: () => 1, bucket: 10000 }
+    });
+
+    expect(spawn.spawnCreep).not.toHaveBeenCalled();
+    expect(expiringHarvester.harvest).toHaveBeenCalled();
+
+    const afterReplacementWorkers = [
+      stableWorker,
+      incomingReplacement,
+      createWorker("worker-extra-1", 0, 1500),
+      createWorker("worker-extra-2", 0, 1500)
+    ];
+    spawn.spawnCreep.mockClear();
+    const stableRoom = createRoom({
+      rcl: 2,
+      structures: [spawn],
+      creeps: afterReplacementWorkers,
+      energyAvailable: 550,
+      energyCapacityAvailable: 550
+    });
+
+    runColony({
+      game: {
+        time: 302,
+        rooms: { W1N1: stableRoom },
+        creeps: Object.fromEntries(afterReplacementWorkers.map((worker) => [worker.name, worker]))
+      },
+      memory,
+      constants,
+      log,
+      cpu: { getUsed: () => 1, bucket: 10000 }
+    });
+
+    expect(spawn.spawnCreep).not.toHaveBeenCalled();
+  });
 });
 
 describe("memory, console API, and observability", () => {
