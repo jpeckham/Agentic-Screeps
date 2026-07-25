@@ -160,7 +160,7 @@ function chooseSource(
   if (assigned?.id) {
     const lowestAssignedCount = Math.min(...assignedCounts.values());
     const assignedCount = assignedCounts.get(assigned.id) ?? 0;
-    if (assignedCount <= lowestAssignedCount + 1) return assigned;
+    if (assignedCount <= lowestAssignedCount) return assigned;
   }
 
   const leastAssigned = snapshot.sources

@@ -459,6 +459,23 @@ describe("colony execution", () => {
     expect(second.memory.assignment).toEqual(expect.objectContaining({ type: "harvest", sourceId: "source-a" }));
   });
 
+  test("abandons stale source assignment when another source has fewer workers", () => {
+    const crowded = createWorker("worker-crowded", 0);
+    const otherCrowded = createWorker("worker-other-crowded", 0);
+    const underassigned = createWorker("worker-underassigned", 0);
+    crowded.memory.assignment = { type: "harvest", sourceId: "source-a" };
+    otherCrowded.memory.assignment = { type: "harvest", sourceId: "source-a" };
+    underassigned.memory.assignment = { type: "harvest", sourceId: "source-b" };
+    const room = createRoom({
+      structures: [createSpawn()],
+      creeps: [crowded, otherCrowded, underassigned]
+    });
+
+    runWorker(crowded, createColonySnapshot(room, constants), constants);
+
+    expect(crowded.memory.assignment).toEqual(expect.objectContaining({ type: "harvest", sourceId: "source-b" }));
+  });
+
   test("clears invalid work assignments when targets no longer need energy", () => {
     const worker = createWorker("worker-1", 50);
     const fullSpawn = createSpawn(300);
