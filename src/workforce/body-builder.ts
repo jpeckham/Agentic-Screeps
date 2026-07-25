@@ -25,7 +25,7 @@ export function buildWorkerBody(
 
   const body = [constants.WORK, constants.CARRY, constants.MOVE];
   let remaining = budget - 200;
-  const pattern = [constants.WORK, constants.CARRY, constants.MOVE];
+  const pattern = [constants.CARRY, constants.MOVE, constants.WORK];
 
   for (const part of pattern) {
     const cost = PART_COST[part] ?? 0;
@@ -35,9 +35,17 @@ export function buildWorkerBody(
     }
   }
 
-  while (remaining >= 200 && body.length <= 47) {
-    body.push(constants.WORK, constants.CARRY, constants.MOVE);
-    remaining -= 200;
+  while (body.length <= 47) {
+    let addedPart = false;
+    for (const part of pattern) {
+      const cost = PART_COST[part] ?? 0;
+      if (remaining >= cost && body.length < 50) {
+        body.push(part);
+        remaining -= cost;
+        addedPart = true;
+      }
+    }
+    if (!addedPart) break;
   }
 
   return body;

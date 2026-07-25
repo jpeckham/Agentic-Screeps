@@ -159,6 +159,7 @@ function createWorker(name: string, energy: number, ttl = 1500) {
 describe("worker body building", () => {
   test("builds functional bootstrap and larger balanced bodies without exceeding energy", () => {
     expect(buildWorkerBody(200, 300, constants)).toEqual(["work", "carry", "move"]);
+    expect(buildWorkerBody(300, 300, constants).filter((part) => part === "move").length).toBeGreaterThanOrEqual(2);
     expect(bodyCost(buildWorkerBody(550, 550, constants))).toBeLessThanOrEqual(550);
     expect(buildWorkerBody(550, 550, constants).filter((part) => part === "move").length).toBeGreaterThanOrEqual(2);
     expect(buildWorkerBody(100, 300, constants)).toEqual([]);
