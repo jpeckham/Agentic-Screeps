@@ -101,7 +101,13 @@ export function runColony(options: ColonyRunOptions): void {
   }
 
   if (!memory.emergency && (options.cpu.bucket ?? 10000) >= config.lowCpuBucket) {
-    const construction = planConstruction(snapshot, memory, options.constants, options.game.time);
+    const construction = planConstruction(
+      snapshot,
+      memory,
+      options.constants,
+      options.game.time,
+      config.planningCadence
+    );
     if (construction && typeof room["createConstructionSite" as keyof AnyRoom] === "function") {
       (room as AnyRoom & { createConstructionSite(x: number, y: number, type: string): number })
         .createConstructionSite(construction.x, construction.y, construction.structureType);

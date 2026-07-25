@@ -438,6 +438,50 @@ describe("colony execution", () => {
     ).not.toThrow();
     expect(worker.harvest).toHaveBeenCalled();
   });
+
+  test("uses configured construction planning cadence unless force replan is set", () => {
+    const worker = createWorker("worker-planner", 50);
+    const room = Object.assign(createRoom({ rcl: 2, structures: [createSpawn()] }), {
+      createConstructionSite: vi.fn(() => constants.OK)
+    });
+    room.find.mockImplementation((constant: number) => {
+      if (constant === constants.FIND_MY_STRUCTURES) return [createSpawn()];
+      if (constant === constants.FIND_STRUCTURES) return [createSpawn()];
+      if (constant === constants.FIND_MY_CREEPS) return [worker];
+      if (constant === constants.FIND_SOURCES) return [
+        { id: "source-a", pos: createPos(10, 10) },
+        { id: "source-b", pos: createPos(40, 40) }
+      ];
+      if (constant === constants.FIND_CONSTRUCTION_SITES) return [];
+      if (constant === constants.FIND_HOSTILE_CREEPS) return [];
+      return [];
+    });
+    const memory = createInitialColonyMemory("W1N1", 2, 1);
+    memory.lastPlanTick = 1;
+
+    runColony({
+      game: { time: 20, rooms: { W1N1: room }, creeps: { "worker-planner": worker } },
+      memory,
+      constants,
+      log: vi.fn(),
+      cpu: { getUsed: () => 1, bucket: 10000 },
+      config: { planningCadence: 50 }
+    });
+
+    expect(room.createConstructionSite).not.toHaveBeenCalled();
+
+    memory.forceReplan = true;
+    runColony({
+      game: { time: 21, rooms: { W1N1: room }, creeps: { "worker-planner": worker } },
+      memory,
+      constants,
+      log: vi.fn(),
+      cpu: { getUsed: () => 1, bucket: 10000 },
+      config: { planningCadence: 50 }
+    });
+
+    expect(room.createConstructionSite).toHaveBeenCalledWith(expect.any(Number), expect.any(Number), "extension");
+  });
 });
 
 describe("construction and tower policy", () => {

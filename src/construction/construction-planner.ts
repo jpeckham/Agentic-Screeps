@@ -12,9 +12,10 @@ export function planConstruction(
   snapshot: ColonySnapshot,
   memory: ColonyMemory,
   constants: SnapshotConstants,
-  tick: number
+  tick: number,
+  cadence = 10
 ): ConstructionPlan | undefined {
-  if (!memory.forceReplan && memory.lastPlanTick > 0 && tick - memory.lastPlanTick < 10) {
+  if (!memory.forceReplan && memory.lastPlanTick > 0 && tick - memory.lastPlanTick < cadence) {
     return undefined;
   }
   memory.lastPlanTick = tick;
