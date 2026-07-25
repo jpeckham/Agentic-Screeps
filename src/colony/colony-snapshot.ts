@@ -124,14 +124,23 @@ export function createColonySnapshot(room: AnyRoom, constants: SnapshotConstants
   const spawns = myStructures.filter((structure) => structure.structureType === constants.STRUCTURE_SPAWN);
   const extensions = myStructures.filter((structure) => structure.structureType === constants.STRUCTURE_EXTENSION);
   const towers = myStructures.filter((structure) => structure.structureType === constants.STRUCTURE_TOWER);
-  const energyStructures = myStructures.filter((structure) =>
+  const energyStructures = uniqueStructures(
     [
-      constants.STRUCTURE_SPAWN,
-      constants.STRUCTURE_EXTENSION,
-      constants.STRUCTURE_TOWER,
-      constants.STRUCTURE_CONTAINER,
-      constants.STRUCTURE_STORAGE
-    ].includes(structure.structureType ?? "")
+      ...myStructures.filter((structure) =>
+        [
+          constants.STRUCTURE_SPAWN,
+          constants.STRUCTURE_EXTENSION,
+          constants.STRUCTURE_TOWER,
+          constants.STRUCTURE_STORAGE
+        ].includes(structure.structureType ?? "")
+      ),
+      ...allStructures.filter((structure) =>
+        [
+          constants.STRUCTURE_CONTAINER,
+          constants.STRUCTURE_STORAGE
+        ].includes(structure.structureType ?? "")
+      )
+    ]
   );
   const damagedStructures = allStructures.filter((structure) =>
     typeof structure.hits === "number" &&
@@ -179,6 +188,18 @@ function isSource(value: unknown): value is AnySource {
 
 function isConstructionSite(value: unknown): value is AnyConstructionSite {
   return typeof value === "object" && value !== null && "structureType" in value;
+}
+
+function uniqueStructures(structures: AnyStructure[]): AnyStructure[] {
+  const seen = new Set<string | AnyStructure>();
+  const unique: AnyStructure[] = [];
+  for (const structure of structures) {
+    const key = structure.id ?? structure;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    unique.push(structure);
+  }
+  return unique;
 }
 
 function hasWorkBody(creep: AnyCreep): boolean {

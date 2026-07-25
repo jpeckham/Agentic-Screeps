@@ -361,6 +361,33 @@ describe("colony execution", () => {
     expect(worker.harvest).not.toHaveBeenCalled();
   });
 
+  test("withdraws from neutral containers discovered in all room structures", () => {
+    const worker = createWorker("worker-neutral-container", 0);
+    const spawn = createSpawn();
+    const container = createEnergyStructure(constants.STRUCTURE_CONTAINER, 150);
+    const room = createRoom({ structures: [spawn], creeps: [worker] });
+    room.find.mockImplementation((constant: number) => {
+      if (constant === constants.FIND_MY_STRUCTURES) return [spawn];
+      if (constant === constants.FIND_STRUCTURES) return [spawn, container];
+      if (constant === constants.FIND_MY_CREEPS) return [worker];
+      if (constant === constants.FIND_SOURCES) return [{ id: "source-a", pos: createPos(10, 10) }];
+      if (constant === constants.FIND_CONSTRUCTION_SITES) return [];
+      if (constant === constants.FIND_HOSTILE_CREEPS) return [];
+      return [];
+    });
+
+    runColony({
+      game: { time: 21, rooms: { W1N1: room }, creeps: { "worker-neutral-container": worker } },
+      memory: createInitialColonyMemory("W1N1", 2, 21),
+      constants,
+      log: vi.fn(),
+      cpu: { getUsed: () => 1, bucket: 10000 }
+    });
+
+    expect(worker.withdraw).toHaveBeenCalledWith(container, "energy");
+    expect(worker.harvest).not.toHaveBeenCalled();
+  });
+
   test("partially loaded worker switches to work when no energy source is available", () => {
     const worker = createWorker("worker-partial", 25);
     worker.memory.mode = "acquire";
