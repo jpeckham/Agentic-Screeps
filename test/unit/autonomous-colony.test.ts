@@ -5,6 +5,7 @@ import { planWorkforce } from "../../src/workforce/workforce-planner.js";
 import { runColony } from "../../src/colony/colony-controller.js";
 import { createColonySnapshot } from "../../src/colony/colony-snapshot.js";
 import { createInitialColonyMemory } from "../../src/colony/colony-state.js";
+import { runWorker } from "../../src/creeps/creep-runner.js";
 import { planConstruction } from "../../src/construction/construction-planner.js";
 import { runTower } from "../../src/structures/tower-controller.js";
 import { cleanupDeadCreepMemory } from "../../src/memory/creep-cleanup.js";
@@ -299,6 +300,34 @@ describe("colony execution", () => {
 
     expect(worker.withdraw).toHaveBeenCalledWith(container, "energy");
     expect(worker.harvest).not.toHaveBeenCalled();
+  });
+
+  test("persists source assignments and balances workers across sources", () => {
+    const first = createWorker("worker-1", 0);
+    const second = createWorker("worker-2", 0);
+    const room = createRoom({ structures: [createSpawn()], creeps: [first, second] });
+    const snapshot = createColonySnapshot(room, constants);
+
+    runWorker(first, snapshot, constants);
+    runWorker(second, snapshot, constants);
+
+    expect(first.memory.assignment).toEqual(expect.objectContaining({ type: "harvest", sourceId: "source-a" }));
+    expect(second.memory.assignment).toEqual(expect.objectContaining({ type: "harvest", sourceId: "source-b" }));
+    expect(first.harvest).toHaveBeenCalledWith(expect.objectContaining({ id: "source-a" }));
+    expect(second.harvest).toHaveBeenCalledWith(expect.objectContaining({ id: "source-b" }));
+  });
+
+  test("clears invalid work assignments when targets no longer need energy", () => {
+    const worker = createWorker("worker-1", 50);
+    const fullSpawn = createSpawn(300);
+    worker.memory.assignment = { type: "deliver", targetId: "spawn-1" };
+    const room = createRoom({ structures: [fullSpawn], creeps: [worker] });
+
+    runWorker(worker, createColonySnapshot(room, constants), constants);
+
+    expect(worker.memory.assignment).toEqual(expect.objectContaining({ type: "upgrade", targetId: "controller" }));
+    expect(worker.transfer).not.toHaveBeenCalled();
+    expect(worker.upgradeController).toHaveBeenCalledWith(room.controller);
   });
 
   test("visual telemetry failures do not stop creep execution", () => {
