@@ -928,6 +928,53 @@ describe("colony execution", () => {
     expect(worker.build).not.toHaveBeenCalled();
   });
 
+  test("allows another extension builder when the workforce can still upgrade", () => {
+    const worker = createWorker("worker-third-extension-builder", 50);
+    const firstBuilder = createWorker("worker-builder-1", 50);
+    firstBuilder.memory.assignment = { type: "build", targetId: "extension-site-1" };
+    const secondBuilder = createWorker("worker-builder-2", 50);
+    secondBuilder.memory.assignment = { type: "build", targetId: "extension-site-2" };
+    const upgrader = createWorker("worker-upgrader-1", 50);
+    upgrader.memory.assignment = { type: "upgrade", targetId: "controller-1" };
+    const harvester = createWorker("worker-harvester-1", 0);
+    harvester.memory.assignment = { type: "harvest", sourceId: "source-1" };
+    const refill = createWorker("worker-refill-1", 0);
+    refill.memory.assignment = { type: "harvest", sourceId: "source-2" };
+    const extensionSites = [
+      { id: "extension-site-1", structureType: constants.STRUCTURE_EXTENSION, pos: createPos(22, 20) },
+      { id: "extension-site-2", structureType: constants.STRUCTURE_EXTENSION, pos: createPos(23, 20) },
+      { id: "extension-site-3", structureType: constants.STRUCTURE_EXTENSION, pos: createPos(24, 20) }
+    ];
+    const room = createRoom({
+      rcl: 2,
+      structures: [createSpawn(300)],
+      creeps: [worker, firstBuilder, secondBuilder, upgrader, harvester, refill],
+      constructionSites: extensionSites
+    });
+
+    runColony({
+      game: {
+        time: 54,
+        rooms: { W1N1: room },
+        creeps: {
+          "worker-third-extension-builder": worker,
+          "worker-builder-1": firstBuilder,
+          "worker-builder-2": secondBuilder,
+          "worker-upgrader-1": upgrader,
+          "worker-harvester-1": harvester,
+          "worker-refill-1": refill
+        }
+      },
+      memory: createInitialColonyMemory("W1N1", 2, 54),
+      constants,
+      log: vi.fn(),
+      cpu: { getUsed: () => 1, bucket: 10000 }
+    });
+
+    expect(worker.build).toHaveBeenCalledWith(extensionSites[0]);
+    expect(worker.upgradeController).not.toHaveBeenCalled();
+  });
+
   test("keeps controller progress while enough workers are already building a tower", () => {
     const worker = createWorker("worker-upgrade-with-tower-builders", 50);
     const firstBuilder = createWorker("worker-tower-builder-1", 50);

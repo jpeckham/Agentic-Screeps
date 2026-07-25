@@ -276,7 +276,7 @@ function criticalBuildSaturated(
   constants: SnapshotConstants,
   criticalBuild: AnyConstructionSite
 ): boolean {
-  const builderLimit = criticalBuild.structureType === constants.STRUCTURE_TOWER ? 3 : 2;
+  const builderLimit = criticalBuildBuilderLimit(snapshot, constants, criticalBuild);
   const criticalSiteIds = new Set(
     snapshot.constructionSites
       .filter((site) => site.structureType === criticalBuild.structureType && site.id)
@@ -298,6 +298,16 @@ function criticalBuildSaturated(
     }
   }
   return builders >= builderLimit;
+}
+
+function criticalBuildBuilderLimit(
+  snapshot: ColonySnapshot,
+  constants: SnapshotConstants,
+  criticalBuild: AnyConstructionSite
+): number {
+  if (criticalBuild.structureType === constants.STRUCTURE_TOWER) return 3;
+  if (criticalBuild.structureType === constants.STRUCTURE_EXTENSION && snapshot.workers.length >= 5) return 3;
+  return 2;
 }
 
 function controllerNeedsPriority(snapshot: ColonySnapshot, config: WorkerPriorityConfig): boolean {
