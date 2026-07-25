@@ -144,16 +144,17 @@ function firstOpenNear(
   for (const [dx, dy] of offsets) {
     const px = x + dx;
     const py = y + dy;
-    if (isBuildable(snapshot, px, py)) return { structureType, x: px, y: py };
+    if (isBuildable(snapshot, px, py, structureType)) return { structureType, x: px, y: py };
   }
   return undefined;
 }
 
-function isBuildable(snapshot: ColonySnapshot, x: number, y: number): boolean {
+function isBuildable(snapshot: ColonySnapshot, x: number, y: number, structureType: string): boolean {
   if (x < 2 || x > 47 || y < 2 || y > 47) return false;
   if (isWall(snapshot, x, y)) return false;
   const occupied = occupiedPositions(snapshot);
   if (occupied.has(positionKey(x, y))) return false;
+  if (structureType !== "container" && isSourceAccessTile(snapshot, x, y)) return false;
   return preservesCriticalAccess(snapshot, x, y, occupied);
 }
 
@@ -177,6 +178,12 @@ function occupiedPositions(snapshot: ColonySnapshot): Set<string> {
     occupied.add(positionKey(snapshot.controller.pos.x, snapshot.controller.pos.y));
   }
   return occupied;
+}
+
+function isSourceAccessTile(snapshot: ColonySnapshot, x: number, y: number): boolean {
+  return snapshot.sources.some((source) =>
+    source.pos && Math.max(Math.abs(source.pos.x - x), Math.abs(source.pos.y - y)) <= 1
+  );
 }
 
 function preservesCriticalAccess(

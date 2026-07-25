@@ -859,6 +859,25 @@ describe("construction and tower policy", () => {
     expect(plan).not.toEqual(expect.objectContaining({ x: 22, y: 20 }));
   });
 
+  test("does not place non-container construction on source access tiles", () => {
+    const source = { id: "source-a", pos: createPos(23, 20) };
+    const room = createRoom({
+      rcl: 2,
+      structures: [createSpawn()],
+      sources: [source]
+    });
+
+    const plan = planConstruction(
+      createColonySnapshot(room, constants),
+      createInitialColonyMemory("W1N1", 2, 1),
+      constants,
+      1
+    );
+
+    expect(plan).toEqual(expect.objectContaining({ structureType: "extension" }));
+    expect(Math.max(Math.abs((plan?.x ?? 0) - source.pos.x), Math.abs((plan?.y ?? 0) - source.pos.y))).toBeGreaterThan(1);
+  });
+
   test("plans containers and RCL4 storage after critical extension and tower demand", () => {
     const extensions = Array.from({ length: 10 }, (_, index) =>
       createEnergyStructure(constants.STRUCTURE_EXTENSION, 0, 50 + index)
