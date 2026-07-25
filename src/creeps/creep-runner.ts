@@ -109,8 +109,8 @@ function performWork(
 
   const criticalBuild = findBuildTarget(snapshot, constants, true);
   if (
-    criticalBuild?.structureType === constants.STRUCTURE_EXTENSION &&
-    extensionBuildSaturated(snapshot, constants) &&
+    criticalBuild &&
+    criticalBuildSaturated(snapshot, constants, criticalBuild) &&
     snapshot.controller &&
     creep.upgradeController &&
     canSpendWorkEnergy(creep, constants)
@@ -271,10 +271,15 @@ function findBuildTarget(
     .sort((left, right) => priorities.indexOf(left.structureType ?? "") - priorities.indexOf(right.structureType ?? ""))[0];
 }
 
-function extensionBuildSaturated(snapshot: ColonySnapshot, constants: SnapshotConstants): boolean {
-  const extensionSiteIds = new Set(
+function criticalBuildSaturated(
+  snapshot: ColonySnapshot,
+  constants: SnapshotConstants,
+  criticalBuild: AnyConstructionSite
+): boolean {
+  const builderLimit = criticalBuild.structureType === constants.STRUCTURE_TOWER ? 3 : 2;
+  const criticalSiteIds = new Set(
     snapshot.constructionSites
-      .filter((site) => site.structureType === constants.STRUCTURE_EXTENSION && site.id)
+      .filter((site) => site.structureType === criticalBuild.structureType && site.id)
       .map((site) => site.id)
   );
   let builders = 0;
@@ -287,12 +292,12 @@ function extensionBuildSaturated(snapshot: ColonySnapshot, constants: SnapshotCo
       assignment.type === "build" &&
       "targetId" in assignment &&
       typeof assignment.targetId === "string" &&
-      extensionSiteIds.has(assignment.targetId)
+      criticalSiteIds.has(assignment.targetId)
     ) {
       builders += 1;
     }
   }
-  return builders >= 2;
+  return builders >= builderLimit;
 }
 
 function controllerNeedsPriority(snapshot: ColonySnapshot, config: WorkerPriorityConfig): boolean {

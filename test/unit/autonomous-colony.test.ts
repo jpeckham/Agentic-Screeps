@@ -927,6 +927,43 @@ describe("colony execution", () => {
     expect(worker.upgradeController).toHaveBeenCalledWith(room.controller);
     expect(worker.build).not.toHaveBeenCalled();
   });
+
+  test("keeps controller progress while enough workers are already building a tower", () => {
+    const worker = createWorker("worker-upgrade-with-tower-builders", 50);
+    const firstBuilder = createWorker("worker-tower-builder-1", 50);
+    firstBuilder.memory.assignment = { type: "build", targetId: "tower-site-1" };
+    const secondBuilder = createWorker("worker-tower-builder-2", 50);
+    secondBuilder.memory.assignment = { type: "build", targetId: "tower-site-1" };
+    const thirdBuilder = createWorker("worker-tower-builder-3", 50);
+    thirdBuilder.memory.assignment = { type: "build", targetId: "tower-site-1" };
+    const towerSite = { id: "tower-site-1", structureType: constants.STRUCTURE_TOWER, pos: createPos(22, 20) };
+    const room = createRoom({
+      rcl: 3,
+      structures: [createSpawn(300)],
+      creeps: [worker, firstBuilder, secondBuilder, thirdBuilder],
+      constructionSites: [towerSite]
+    });
+
+    runColony({
+      game: {
+        time: 53,
+        rooms: { W1N1: room },
+        creeps: {
+          "worker-upgrade-with-tower-builders": worker,
+          "worker-tower-builder-1": firstBuilder,
+          "worker-tower-builder-2": secondBuilder,
+          "worker-tower-builder-3": thirdBuilder
+        }
+      },
+      memory: createInitialColonyMemory("W1N1", 3, 53),
+      constants,
+      log: vi.fn(),
+      cpu: { getUsed: () => 1, bucket: 10000 }
+    });
+
+    expect(worker.upgradeController).toHaveBeenCalledWith(room.controller);
+    expect(worker.build).not.toHaveBeenCalled();
+  });
 });
 
 describe("construction and tower policy", () => {
