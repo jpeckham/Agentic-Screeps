@@ -415,6 +415,21 @@ describe("colony execution", () => {
     expect(second.harvest).toHaveBeenCalledWith(expect.objectContaining({ id: "source-b" }));
   });
 
+  test("rebalances stale harvest assignments when workers crowd one source", () => {
+    const first = createWorker("worker-1", 0);
+    const second = createWorker("worker-2", 0);
+    first.memory.assignment = { type: "harvest", sourceId: "source-a" };
+    second.memory.assignment = { type: "harvest", sourceId: "source-a" };
+    const room = createRoom({ structures: [createSpawn()], creeps: [first, second] });
+    const snapshot = createColonySnapshot(room, constants);
+
+    runWorker(first, snapshot, constants);
+    runWorker(second, snapshot, constants);
+
+    expect(first.memory.assignment).toEqual(expect.objectContaining({ type: "harvest", sourceId: "source-b" }));
+    expect(second.memory.assignment).toEqual(expect.objectContaining({ type: "harvest", sourceId: "source-a" }));
+  });
+
   test("clears invalid work assignments when targets no longer need energy", () => {
     const worker = createWorker("worker-1", 50);
     const fullSpawn = createSpawn(300);

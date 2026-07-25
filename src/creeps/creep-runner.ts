@@ -155,23 +155,12 @@ function chooseSource(
   snapshot: ColonySnapshot,
   memory: ColonyCreepMemory
 ): AnySource | undefined {
+  const assignedCounts = sourceAssignmentCounts(snapshot);
   const assigned = snapshot.sources.find((source) => source.id && source.id === memory.assignment?.sourceId);
-  if (assigned) return assigned;
-
-  const assignedCounts = new Map<string, number>();
-  for (const source of snapshot.sources) {
-    if (source.id) assignedCounts.set(source.id, 0);
-  }
-  for (const worker of snapshot.workers) {
-    if (worker.name === creep.name) continue;
-    const sourceId = worker.memory?.["assignment"] &&
-      typeof worker.memory["assignment"] === "object" &&
-      "sourceId" in worker.memory["assignment"]
-      ? worker.memory["assignment"].sourceId
-      : undefined;
-    if (typeof sourceId === "string" && assignedCounts.has(sourceId)) {
-      assignedCounts.set(sourceId, (assignedCounts.get(sourceId) ?? 0) + 1);
-    }
+  if (assigned?.id) {
+    const lowestAssignedCount = Math.min(...assignedCounts.values());
+    const assignedCount = assignedCounts.get(assigned.id) ?? 0;
+    if (assignedCount <= lowestAssignedCount + 1) return assigned;
   }
 
   const leastAssigned = snapshot.sources
@@ -182,6 +171,24 @@ function chooseSource(
   const closest = creep.pos?.findClosestByRange?.(snapshot.sources);
   if (isSource(closest)) return closest;
   return snapshot.sources[0];
+}
+
+function sourceAssignmentCounts(snapshot: ColonySnapshot): Map<string, number> {
+  const assignedCounts = new Map<string, number>();
+  for (const source of snapshot.sources) {
+    if (source.id) assignedCounts.set(source.id, 0);
+  }
+  for (const worker of snapshot.workers) {
+    const sourceId = worker.memory?.["assignment"] &&
+      typeof worker.memory["assignment"] === "object" &&
+      "sourceId" in worker.memory["assignment"]
+      ? worker.memory["assignment"].sourceId
+      : undefined;
+    if (typeof sourceId === "string" && assignedCounts.has(sourceId)) {
+      assignedCounts.set(sourceId, (assignedCounts.get(sourceId) ?? 0) + 1);
+    }
+  }
+  return assignedCounts;
 }
 
 function findRefillTarget(
