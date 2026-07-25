@@ -97,9 +97,13 @@ export function runColony(options: ColonyRunOptions): void {
   spawnFromPlan(snapshot, memory, spawnRequest, options);
 
   for (const creep of snapshot.workers) {
-    runWorker(creep, snapshot, options.constants, {
-      controllerEmergencyThreshold: config.controllerEmergencyThreshold
-    });
+    try {
+      runWorker(creep, snapshot, options.constants, {
+        controllerEmergencyThreshold: config.controllerEmergencyThreshold
+      });
+    } catch (error) {
+      options.log(`[colony ${memory.roomName}] creep ${creep.name} failed: ${error instanceof Error ? error.message : String(error)}`);
+    }
   }
 
   if (!memory.emergency && (options.cpu.bucket ?? 10000) >= config.lowCpuBucket) {

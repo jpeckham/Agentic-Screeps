@@ -481,6 +481,33 @@ describe("colony execution", () => {
     expect(worker.harvest).toHaveBeenCalled();
   });
 
+  test("one creep action failure does not stop other creeps from running", () => {
+    const failingWorker = createWorker("worker-failing", 0);
+    failingWorker.harvest.mockImplementation(() => {
+      throw new Error("harvest failed");
+    });
+    const healthyWorker = createWorker("worker-healthy", 0);
+    const room = createRoom({ structures: [createSpawn()], creeps: [failingWorker, healthyWorker] });
+    const log = vi.fn();
+
+    expect(() =>
+      runColony({
+        game: {
+          time: 35,
+          rooms: { W1N1: room },
+          creeps: { "worker-failing": failingWorker, "worker-healthy": healthyWorker }
+        },
+        memory: createInitialColonyMemory("W1N1", 1, 35),
+        constants,
+        log,
+        cpu: { getUsed: () => 1, bucket: 10000 }
+      })
+    ).not.toThrow();
+
+    expect(healthyWorker.harvest).toHaveBeenCalled();
+    expect(log).toHaveBeenCalledWith("[colony W1N1] creep worker-failing failed: harvest failed");
+  });
+
   test("uses configured construction planning cadence unless force replan is set", () => {
     const worker = createWorker("worker-planner", 50);
     const room = Object.assign(createRoom({ rcl: 2, structures: [createSpawn()] }), {
@@ -779,6 +806,108 @@ describe("integration scenarios", () => {
       expect.stringMatching(/^worker-/),
       expect.any(Object)
     );
+  });
+
+  test("scenario D: RCL3 transition plans and builds a defensive tower", () => {
+    const log = vi.fn();
+    const memory = createInitialColonyMemory("W1N1", 2, 200);
+    memory.workforceTarget = 4;
+    const extensions = Array.from({ length: 5 }, (_, index) => ({
+      ...createEnergyStructure(constants.STRUCTURE_EXTENSION, 50, 50),
+      id: `extension-${index}`
+    }));
+    const workers = [
+      createWorker("worker-1", 50),
+      createWorker("worker-2", 50),
+      createWorker("worker-3", 50),
+      createWorker("worker-4", 50),
+      createWorker("worker-5", 50)
+    ];
+    const transitionRoom = Object.assign(createRoom({
+      rcl: 3,
+      structures: [createSpawn(300), ...extensions],
+      creeps: workers,
+      energyAvailable: 550,
+      energyCapacityAvailable: 550
+    }), {
+      createConstructionSite: vi.fn(() => constants.OK)
+    });
+
+    runColony({
+      game: {
+        time: 200,
+        rooms: { W1N1: transitionRoom },
+        creeps: Object.fromEntries(workers.map((worker) => [worker.name, worker]))
+      },
+      memory,
+      constants,
+      log,
+      cpu: { getUsed: () => 1, bucket: 10000 }
+    });
+
+    expect(log).toHaveBeenCalledWith("[colony W1N1] reached RCL 3");
+    expect(transitionRoom.createConstructionSite).toHaveBeenCalledWith(expect.any(Number), expect.any(Number), "tower");
+    expect(log).toHaveBeenCalledWith("[colony W1N1] construction plan updated: 1/1 tower");
+
+    const towerSite = { id: "tower-site-1", structureType: constants.STRUCTURE_TOWER, pos: createPos(22, 20) };
+    const extensionSite = { id: "extension-site-1", structureType: constants.STRUCTURE_EXTENSION, pos: createPos(23, 20) };
+    const builder = createWorker("builder", 50);
+    const buildRoom = createRoom({
+      rcl: 3,
+      structures: [createSpawn(300), ...extensions],
+      creeps: [builder],
+      constructionSites: [extensionSite, towerSite]
+    });
+
+    runColony({
+      game: { time: 201, rooms: { W1N1: buildRoom }, creeps: { builder } },
+      memory,
+      constants,
+      log,
+      cpu: { getUsed: () => 1, bucket: 10000 }
+    });
+
+    expect(builder.build).toHaveBeenCalledWith(towerSite);
+    expect(builder.build).not.toHaveBeenCalledWith(extensionSite);
+
+    const hostile = { id: "hostile" };
+    const damagedRoad = { id: "road", structureType: constants.STRUCTURE_ROAD, hits: 20, hitsMax: 500, pos: createPos(24, 20) };
+    const tower = createTower(900);
+    const defenseRoom = createRoom({
+      rcl: 3,
+      structures: [createSpawn(300), tower, damagedRoad],
+      hostiles: [hostile]
+    });
+
+    runColony({
+      game: { time: 202, rooms: { W1N1: defenseRoom }, creeps: {} },
+      memory,
+      constants,
+      log,
+      cpu: { getUsed: () => 1, bucket: 10000 }
+    });
+
+    expect(tower.attack).toHaveBeenCalledWith(hostile);
+    expect(tower.repair).not.toHaveBeenCalled();
+
+    tower.attack.mockClear();
+    tower.repair.mockClear();
+    tower.store.getUsedCapacity.mockReturnValue(400);
+    const reserveRoom = createRoom({
+      rcl: 3,
+      structures: [createSpawn(300), tower, damagedRoad]
+    });
+
+    runColony({
+      game: { time: 203, rooms: { W1N1: reserveRoom }, creeps: {} },
+      memory,
+      constants,
+      log,
+      cpu: { getUsed: () => 1, bucket: 10000 }
+    });
+
+    expect(tower.attack).not.toHaveBeenCalled();
+    expect(tower.repair).not.toHaveBeenCalled();
   });
 });
 
