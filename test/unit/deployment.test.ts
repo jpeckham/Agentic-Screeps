@@ -152,4 +152,26 @@ describe("deployment workflows", () => {
     expect(client.activateBranch).not.toHaveBeenCalled();
   });
 
+  test("live deployment verifies expected modules even when the branch has stale extras", async () => {
+    const client = {
+      uploadModules: vi.fn().mockResolvedValue(undefined),
+      getActiveBranch: vi.fn().mockResolvedValue("agentic"),
+      readModules: vi.fn().mockResolvedValue({
+        main: "release-abc12345 code",
+        stale: "old code"
+      }),
+      activateBranch: vi.fn()
+    };
+
+    await expect(
+      deployLive({
+        client,
+        branch: "agentic",
+        modules: { main: "release-abc12345 code" },
+        releaseId: "release-abc12345",
+        entryModule: "main"
+      })
+    ).resolves.toEqual({ activeBranch: "agentic", deployedBranch: "agentic" });
+  });
+
 });

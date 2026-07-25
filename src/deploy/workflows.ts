@@ -26,15 +26,19 @@ export async function deployLive(
 ): Promise<{ activeBranch: string; deployedBranch: string }> {
   const activeBranch = await options.client.getActiveBranch();
   await options.client.uploadModules(options.branch, options.modules);
-  await verifyRemoteCandidate(options);
+  await verifyRemoteCandidate(options, { allowExtraModules: true });
   return { activeBranch, deployedBranch: options.branch };
 }
 
-async function verifyRemoteCandidate(options: ReleaseDeployment): Promise<void> {
+async function verifyRemoteCandidate(
+  options: ReleaseDeployment,
+  verification: { allowExtraModules?: boolean } = {}
+): Promise<void> {
   const uploaded = await options.client.readModules(options.branch);
   const uploadedNames = Object.keys(uploaded).sort();
   const expectedNames = Object.keys(options.modules).sort();
-  if (JSON.stringify(uploadedNames) !== JSON.stringify(expectedNames)) {
+  const missingNames = expectedNames.filter((name) => !uploadedNames.includes(name));
+  if (missingNames.length > 0 || (!verification.allowExtraModules && JSON.stringify(uploadedNames) !== JSON.stringify(expectedNames))) {
     throw new Error("Remote candidate could not be verified: module list mismatch.");
   }
   if (!(options.entryModule in uploaded)) {

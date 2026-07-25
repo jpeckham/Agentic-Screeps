@@ -18,7 +18,8 @@ await uploadModules(config, branch, modules);
 const uploaded = await readModules(config, branch);
 const uploadedNames = Object.keys(uploaded).sort();
 const expectedNames = Object.keys(modules).sort();
-if (JSON.stringify(uploadedNames) !== JSON.stringify(expectedNames)) {
+const missingNames = expectedNames.filter((name) => !uploadedNames.includes(name));
+if (missingNames.length > 0) {
   throw new Error("Live deploy verification failed: module list mismatch.");
 }
 if (!uploaded[manifest.entryModule]) {
