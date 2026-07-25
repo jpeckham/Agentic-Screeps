@@ -687,6 +687,101 @@ describe("construction and tower policy", () => {
   });
 });
 
+describe("integration scenarios", () => {
+  test("scenario C: RCL2 transition plans extensions, builds them, and spawns stronger bodies", () => {
+    const log = vi.fn();
+    const memory = createInitialColonyMemory("W1N1", 1, 100);
+    memory.workforceTarget = 3;
+    const workers = [
+      createWorker("worker-1", 50),
+      createWorker("worker-2", 50),
+      createWorker("worker-3", 50),
+      createWorker("worker-4", 50)
+    ];
+    const spawn = createSpawn(300);
+    const transitionRoom = Object.assign(createRoom({
+      rcl: 2,
+      structures: [spawn],
+      creeps: workers,
+      energyAvailable: 300,
+      energyCapacityAvailable: 300
+    }), {
+      createConstructionSite: vi.fn(() => constants.OK)
+    });
+
+    runColony({
+      game: {
+        time: 100,
+        rooms: { W1N1: transitionRoom },
+        creeps: Object.fromEntries(workers.map((worker) => [worker.name, worker]))
+      },
+      memory,
+      constants,
+      log,
+      cpu: { getUsed: () => 1, bucket: 10000 }
+    });
+
+    expect(log).toHaveBeenCalledWith("[colony W1N1] reached RCL 2");
+    expect(transitionRoom.createConstructionSite).toHaveBeenCalledWith(expect.any(Number), expect.any(Number), "extension");
+    expect(log).toHaveBeenCalledWith("[colony W1N1] construction plan updated: 1/5 extensions");
+
+    const extensionSite = { id: "extension-site-1", structureType: constants.STRUCTURE_EXTENSION, pos: createPos(22, 20) };
+    const builder = createWorker("builder", 50);
+    const buildRoom = createRoom({
+      rcl: 2,
+      structures: [createSpawn(300)],
+      creeps: [builder],
+      constructionSites: [extensionSite]
+    });
+
+    runColony({
+      game: { time: 101, rooms: { W1N1: buildRoom }, creeps: { builder } },
+      memory,
+      constants,
+      log,
+      cpu: { getUsed: () => 1, bucket: 10000 }
+    });
+
+    expect(builder.build).toHaveBeenCalledWith(extensionSite);
+
+    const extensions = Array.from({ length: 5 }, (_, index) => ({
+      ...createEnergyStructure(constants.STRUCTURE_EXTENSION, 50, 50),
+      id: `extension-${index}`
+    }));
+    const strongerSpawn = createSpawn(300);
+    const experiencedWorkers = [
+      createWorker("experienced-1", 0),
+      createWorker("experienced-2", 0),
+      createWorker("experienced-3", 0)
+    ];
+    const matureRcl2Room = createRoom({
+      rcl: 2,
+      structures: [strongerSpawn, ...extensions],
+      creeps: experiencedWorkers,
+      energyAvailable: 550,
+      energyCapacityAvailable: 550
+    });
+
+    runColony({
+      game: {
+        time: 102,
+        rooms: { W1N1: matureRcl2Room },
+        creeps: Object.fromEntries(experiencedWorkers.map((worker) => [worker.name, worker]))
+      },
+      memory,
+      constants,
+      log,
+      cpu: { getUsed: () => 1, bucket: 10000 }
+    });
+
+    expect(strongerSpawn.spawnCreep).toHaveBeenCalledWith(
+      expect.arrayContaining(["work", "work", "carry", "carry", "move", "move"]),
+      expect.stringMatching(/^worker-/),
+      expect.any(Object)
+    );
+  });
+});
+
 describe("memory, console API, and observability", () => {
   test("cleans only dead creep memory and keeps unrelated memory", () => {
     const memory = {

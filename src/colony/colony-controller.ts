@@ -111,8 +111,11 @@ export function runColony(options: ColonyRunOptions): void {
       config.planningCadence
     );
     if (construction && typeof room["createConstructionSite" as keyof AnyRoom] === "function") {
-      (room as AnyRoom & { createConstructionSite(x: number, y: number, type: string): number })
+      const result = (room as AnyRoom & { createConstructionSite(x: number, y: number, type: string): number })
         .createConstructionSite(construction.x, construction.y, construction.structureType);
+      if (result === options.constants.OK) {
+        logConstructionPlanUpdated(snapshot, construction.structureType, options.constants, options.log);
+      }
     }
   }
 
@@ -224,6 +227,47 @@ function updateWorkforceTarget(
     log(`[colony ${memory.roomName}] workforce target changed: ${previousTarget} -> ${desiredWorkers}`);
   }
   memory.workforceTarget = desiredWorkers;
+}
+
+function logConstructionPlanUpdated(
+  snapshot: ReturnType<typeof createColonySnapshot>,
+  structureType: string,
+  constants: SnapshotConstants,
+  log: (message: string) => void
+): void {
+  const currentCount = countExistingConstructionTargets(snapshot, structureType, constants) + 1;
+  const targetCount = constructionTargetCount(snapshot.rcl, structureType, constants);
+  const label = targetCount === 1 ? structureType : `${structureType}s`;
+  log(`[colony ${snapshot.room.name}] construction plan updated: ${currentCount}/${targetCount} ${label}`);
+}
+
+function countExistingConstructionTargets(
+  snapshot: ReturnType<typeof createColonySnapshot>,
+  structureType: string,
+  constants: SnapshotConstants
+): number {
+  if (structureType === constants.STRUCTURE_EXTENSION) {
+    return snapshot.extensions.length + snapshot.constructionSites.filter((site) => site.structureType === structureType).length;
+  }
+  if (structureType === constants.STRUCTURE_TOWER) {
+    return snapshot.towers.length + snapshot.constructionSites.filter((site) => site.structureType === structureType).length;
+  }
+  return snapshot.energyStructures.filter((structure) => structure.structureType === structureType).length
+    + snapshot.constructionSites.filter((site) => site.structureType === structureType).length;
+}
+
+function constructionTargetCount(
+  rcl: number,
+  structureType: string,
+  constants: SnapshotConstants
+): number {
+  if (structureType === constants.STRUCTURE_EXTENSION) {
+    if (rcl >= 4) return 20;
+    if (rcl >= 3) return 10;
+    return 5;
+  }
+  if (structureType === constants.STRUCTURE_CONTAINER) return 2;
+  return 1;
 }
 
 function hasWorkAndCarry(creep: { body?: Array<{ type: string; hits?: number }> }): boolean {
