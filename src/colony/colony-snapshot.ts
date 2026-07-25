@@ -1,4 +1,7 @@
 export interface SnapshotConstants {
+  WORK: string;
+  CARRY: string;
+  MOVE: string;
   FIND_MY_STRUCTURES: number;
   FIND_STRUCTURES: number;
   FIND_MY_CREEPS: number;

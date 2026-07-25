@@ -382,6 +382,31 @@ describe("colony execution", () => {
     expect(worker.upgradeController).not.toHaveBeenCalled();
   });
 
+  test("does not attempt work actions without required live body parts", () => {
+    const noWorkHarvester = createWorker("worker-no-work", 0);
+    noWorkHarvester.body = [{ type: constants.CARRY }, { type: constants.MOVE }];
+    const harvestRoom = createRoom({ structures: [createSpawn()], creeps: [noWorkHarvester] });
+
+    runWorker(noWorkHarvester, createColonySnapshot(harvestRoom, constants), constants);
+    expect(noWorkHarvester.harvest).not.toHaveBeenCalled();
+    expect(noWorkHarvester.moveTo).not.toHaveBeenCalled();
+
+    const noWorkBuilder = createWorker("worker-no-work-loaded", 50);
+    noWorkBuilder.body = [{ type: constants.CARRY }, { type: constants.MOVE }];
+    const fullSpawn = createSpawn(300);
+    const buildSite = { id: "site-1", structureType: constants.STRUCTURE_EXTENSION, pos: createPos(22, 20) };
+    const workRoom = createRoom({
+      structures: [fullSpawn],
+      creeps: [noWorkBuilder],
+      constructionSites: [buildSite]
+    });
+
+    runWorker(noWorkBuilder, createColonySnapshot(workRoom, constants), constants);
+    expect(noWorkBuilder.build).not.toHaveBeenCalled();
+    expect(noWorkBuilder.upgradeController).not.toHaveBeenCalled();
+    expect(noWorkBuilder.repair).not.toHaveBeenCalled();
+  });
+
   test("visual telemetry failures do not stop creep execution", () => {
     const worker = createWorker("worker-1", 0);
     const room = createRoom({ structures: [createSpawn()], creeps: [worker] });

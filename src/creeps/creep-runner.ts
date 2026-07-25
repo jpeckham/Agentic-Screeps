@@ -56,14 +56,14 @@ function acquireEnergy(
     [constants.STRUCTURE_CONTAINER, constants.STRUCTURE_STORAGE].includes(structure.structureType ?? "") &&
     (structure.store?.getUsedCapacity(constants.RESOURCE_ENERGY) ?? 0) > 0
   );
-  if (storage && creep.withdraw) {
+  if (storage && creep.withdraw && hasLivePart(creep, constants.CARRY)) {
     memory.assignment = { type: "harvest", ...(storage.id ? { targetId: storage.id } : {}) };
     actOrMove(creep, storage, creep.withdraw(storage, constants.RESOURCE_ENERGY), constants);
     return;
   }
 
   const source = chooseSource(creep, snapshot, memory);
-  if (source && creep.harvest) {
+  if (source && creep.harvest && hasLivePart(creep, constants.WORK) && hasLivePart(creep, constants.CARRY)) {
     memory.assignment = { type: "harvest", ...(source.id ? { sourceId: source.id } : {}) };
     actOrMove(creep, source, creep.harvest(source), constants);
   }
@@ -76,47 +76,47 @@ function performWork(
   memory: ColonyCreepMemory
 ): void {
   const refillTarget = findRefillTarget(snapshot, constants);
-  if (refillTarget && creep.transfer) {
+  if (refillTarget && creep.transfer && hasLivePart(creep, constants.CARRY)) {
     memory.assignment = { type: "deliver", ...(refillTarget.id ? { targetId: refillTarget.id } : {}) };
     actOrMove(creep, refillTarget, creep.transfer(refillTarget, constants.RESOURCE_ENERGY), constants);
     return;
   }
 
   const criticalBuild = findBuildTarget(snapshot, constants, true);
-  if (criticalBuild && creep.build) {
+  if (criticalBuild && creep.build && canSpendWorkEnergy(creep, constants)) {
     memory.assignment = { type: "build", ...(criticalBuild.id ? { targetId: criticalBuild.id } : {}) };
     actOrMove(creep, criticalBuild, creep.build(criticalBuild), constants);
     return;
   }
 
-  if (controllerNeedsPriority(snapshot) && snapshot.controller && creep.upgradeController) {
+  if (controllerNeedsPriority(snapshot) && snapshot.controller && creep.upgradeController && canSpendWorkEnergy(creep, constants)) {
     memory.assignment = { type: "upgrade", ...(snapshot.controller.id ? { targetId: snapshot.controller.id } : {}) };
     actOrMove(creep, snapshot.controller, creep.upgradeController(snapshot.controller), constants);
     return;
   }
 
   const criticalRepairTarget = findRepairTarget(snapshot, constants, true);
-  if (criticalRepairTarget && creep.repair) {
+  if (criticalRepairTarget && creep.repair && canSpendWorkEnergy(creep, constants)) {
     memory.assignment = { type: "repair", ...(criticalRepairTarget.id ? { targetId: criticalRepairTarget.id } : {}) };
     actOrMove(creep, criticalRepairTarget, creep.repair(criticalRepairTarget), constants);
     return;
   }
 
   const buildTarget = findBuildTarget(snapshot, constants, false);
-  if (buildTarget && creep.build) {
+  if (buildTarget && creep.build && canSpendWorkEnergy(creep, constants)) {
     memory.assignment = { type: "build", ...(buildTarget.id ? { targetId: buildTarget.id } : {}) };
     actOrMove(creep, buildTarget, creep.build(buildTarget), constants);
     return;
   }
 
-  if (snapshot.controller && creep.upgradeController) {
+  if (snapshot.controller && creep.upgradeController && canSpendWorkEnergy(creep, constants)) {
     memory.assignment = { type: "upgrade", ...(snapshot.controller.id ? { targetId: snapshot.controller.id } : {}) };
     actOrMove(creep, snapshot.controller, creep.upgradeController(snapshot.controller), constants);
     return;
   }
 
   const repairTarget = findRepairTarget(snapshot, constants, false);
-  if (repairTarget && creep.repair) {
+  if (repairTarget && creep.repair && canSpendWorkEnergy(creep, constants)) {
     memory.assignment = { type: "repair", ...(repairTarget.id ? { targetId: repairTarget.id } : {}) };
     actOrMove(creep, repairTarget, creep.repair(repairTarget), constants);
     return;
@@ -217,6 +217,14 @@ function actOrMove(
   constants: SnapshotConstants
 ): void {
   if (result === constants.ERR_NOT_IN_RANGE) creep.moveTo?.(target);
+}
+
+function canSpendWorkEnergy(creep: AnyCreep, constants: SnapshotConstants): boolean {
+  return hasLivePart(creep, constants.WORK) && hasLivePart(creep, constants.CARRY);
+}
+
+function hasLivePart(creep: AnyCreep, partType: string): boolean {
+  return (creep.body ?? []).some((part) => part.type === partType && (part.hits ?? 1) > 0);
 }
 
 function isSource(value: unknown): value is AnySource {
