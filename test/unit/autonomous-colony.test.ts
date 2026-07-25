@@ -603,6 +603,25 @@ describe("colony execution", () => {
     expect(room.createConstructionSite).toHaveBeenCalledWith(expect.any(Number), expect.any(Number), "extension");
   });
 
+  test("records construction plan memory only after the room accepts the site", () => {
+    const worker = createWorker("worker-rejected-plan", 50);
+    const room = Object.assign(createRoom({ rcl: 2, structures: [createSpawn(300)], creeps: [worker] }), {
+      createConstructionSite: vi.fn(() => -14)
+    });
+    const memory = createInitialColonyMemory("W1N1", 2, 60);
+
+    runColony({
+      game: { time: 60, rooms: { W1N1: room }, creeps: { "worker-rejected-plan": worker } },
+      memory,
+      constants,
+      log: vi.fn(),
+      cpu: { getUsed: () => 1, bucket: 10000 }
+    });
+
+    expect(room.createConstructionSite).toHaveBeenCalledWith(expect.any(Number), expect.any(Number), "extension");
+    expect(memory.lastConstructionPlan).toBeUndefined();
+  });
+
   test("uses configured controller downgrade threshold before construction", () => {
     const worker = createWorker("worker-controller-risk", 50);
     const spawn = createSpawn(300);

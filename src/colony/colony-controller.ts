@@ -135,6 +135,7 @@ export function runColony(options: ColonyRunOptions): void {
       const result = (room as AnyRoom & { createConstructionSite(x: number, y: number, type: string): number })
         .createConstructionSite(construction.x, construction.y, construction.structureType);
       if (result === options.constants.OK) {
+        memory.lastConstructionPlan = { tick: options.game.time, rcl: snapshot.rcl, ...construction };
         logConstructionPlanUpdated(snapshot, construction.structureType, options.constants, options.log);
       }
     }

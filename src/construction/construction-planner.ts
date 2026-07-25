@@ -29,7 +29,6 @@ export function planConstruction(
   if (!origin) return undefined;
   const plan = firstOpenNear(snapshot, origin.x, origin.y, desired);
   if (!plan) return undefined;
-  memory.lastConstructionPlan = { tick, rcl: snapshot.rcl, ...plan };
   return plan;
 }
 
