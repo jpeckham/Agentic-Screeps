@@ -59,10 +59,11 @@ export async function readModules(config, branch) {
     config,
     `/api/user/code?branch=${encodeURIComponent(branch)}`
   );
-  if (!body.modules || typeof body.modules !== "object") {
+  const modules = body.modules ?? body;
+  if (!isStringRecord(modules)) {
     throw new Error("Malformed code response.");
   }
-  return body.modules;
+  return modules;
 }
 
 export async function getActiveBranch(config) {
@@ -93,4 +94,12 @@ function classify(status) {
   if (status === 429) return "Screeps rate limit exceeded.";
   if (status >= 500) return "Screeps server error.";
   return `Screeps API request failed (${status}).`;
+}
+
+function isStringRecord(value) {
+  return (
+    value !== null &&
+    typeof value === "object" &&
+    Object.values(value).every((item) => typeof item === "string")
+  );
 }

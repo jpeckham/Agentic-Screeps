@@ -3,7 +3,8 @@ import { afterEach, describe, expect, test } from "vitest";
 import {
   readConfig,
   screepsRequest,
-  uploadModules
+  uploadModules,
+  readModules
 } from "../../scripts/screeps-api.mjs";
 
 const originalEnv = { ...process.env };
@@ -57,6 +58,22 @@ describe("Screeps API script config", () => {
           main: "module.exports.loop = () => {};"
         })
       ).resolves.toBeUndefined();
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  test("reads module maps returned directly by the code endpoint", async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async () =>
+      new Response(JSON.stringify({ main: "module.exports.loop = () => {};" }), {
+        status: 200
+      });
+
+    try {
+      await expect(
+        readModules({ token: "token", host: "https://screeps.example" }, "agentic")
+      ).resolves.toEqual({ main: "module.exports.loop = () => {};" });
     } finally {
       globalThis.fetch = originalFetch;
     }
