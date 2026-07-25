@@ -1,0 +1,90 @@
+name: Production Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      artifact_run_id:
+        description: Workflow run id containing the immutable dist artifact
+        required: true
+        type: string
+      artifact_name:
+        description: Artifact name, for example screeps-release-abc12345
+        required: true
+        type: string
+      target_branch:
+        description: Inactive Screeps branch to activate after verification
+        required: true
+        type: string
+      confirmation:
+        description: Type DEPLOY exactly
+        required: true
+        type: string
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: screeps-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    environment: screeps-production
+    steps:
+      - name: Validate confirmation
+        run: |
+          test "${{ inputs.confirmation }}" = "DEPLOY"
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Download immutable artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ inputs.artifact_name }}
+          run-id: ${{ inputs.artifact_run_id }}
+          github-token: ${{ github.token }}
+          path: dist
+
+      - name: Verify downloaded artifact
+        run: node scripts/verify-release.mjs dist/release-manifest.json
+
+      - name: Upload and verify inactive release branch
+        env:
+          SCREEPS_TOKEN: ${{ secrets.SCREEPS_TOKEN }}
+          SCREEPS_HOST: ${{ vars.SCREEPS_HOST }}
+          SCREEPS_BRANCH: ${{ inputs.target_branch }}
+          SCREEPS_SHARD: ${{ vars.SCREEPS_SHARD }}
+        run: npm run deploy:candidate
+
+      - name: Activate release branch
+        env:
+          SCREEPS_TOKEN: ${{ secrets.SCREEPS_TOKEN }}
+          SCREEPS_HOST: ${{ vars.SCREEPS_HOST }}
+          SCREEPS_BRANCH: ${{ inputs.target_branch }}
+          CONFIRM_DEPLOY: ${{ inputs.confirmation }}
+        run: npm run deploy:production
+
+      - name: Store rollback metadata
+        uses: actions/upload-artifact@v4
+        with:
+          name: rollback-metadata-${{ inputs.target_branch }}
+          path: rollback-metadata.json
+          if-no-files-found: error
+
+      - name: Summary
+        run: |
+          echo "Activated branch: ${{ inputs.target_branch }}" >> "$GITHUB_STEP_SUMMARY"
+          cat rollback-metadata.json >> "$GITHUB_STEP_SUMMARY"

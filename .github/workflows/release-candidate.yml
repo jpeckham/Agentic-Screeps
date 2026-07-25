@@ -1,0 +1,70 @@
+name: Release Candidate
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      upload_candidate:
+        description: Upload artifact to inactive Screeps candidate branch
+        required: true
+        default: "false"
+        type: choice
+        options: ["false", "true"]
+      branch:
+        description: Optional inactive Screeps branch name
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-candidate-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    environment: screeps-candidate
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Verify
+        run: npm run verify
+
+      - name: Read release id
+        id: manifest
+        run: |
+          echo "release_id=$(node -e "console.log(require('./dist/release-manifest.json').releaseId)")" >> "$GITHUB_OUTPUT"
+
+      - name: Upload immutable release artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: screeps-${{ steps.manifest.outputs.release_id }}
+          path: dist/
+          if-no-files-found: error
+
+      - name: Upload inactive candidate
+        if: inputs.upload_candidate == 'true'
+        env:
+          SCREEPS_TOKEN: ${{ secrets.SCREEPS_TOKEN }}
+          SCREEPS_HOST: ${{ vars.SCREEPS_HOST }}
+          SCREEPS_BRANCH: ${{ inputs.branch || steps.manifest.outputs.release_id }}
+          SCREEPS_SHARD: ${{ vars.SCREEPS_SHARD }}
+        run: npm run deploy:candidate
+
+      - name: Summary
+        run: |
+          echo "Release: ${{ steps.manifest.outputs.release_id }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "Candidate branch: ${{ inputs.branch || steps.manifest.outputs.release_id }}" >> "$GITHUB_STEP_SUMMARY"

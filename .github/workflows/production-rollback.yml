@@ -1,0 +1,53 @@
+name: Production Rollback
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_branch:
+        description: Explicit Screeps branch to activate
+        required: true
+        type: string
+      confirmation:
+        description: Type ROLLBACK exactly
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: screeps-production
+  cancel-in-progress: false
+
+jobs:
+  rollback:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    environment: screeps-production
+    steps:
+      - name: Validate confirmation
+        run: |
+          test "${{ inputs.confirmation }}" = "ROLLBACK"
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Activate explicit rollback branch
+        env:
+          SCREEPS_TOKEN: ${{ secrets.SCREEPS_TOKEN }}
+          SCREEPS_HOST: ${{ vars.SCREEPS_HOST }}
+          SCREEPS_BRANCH: ${{ inputs.target_branch }}
+          CONFIRM_ROLLBACK: ${{ inputs.confirmation }}
+        run: npm run rollback:production
+
+      - name: Summary
+        run: echo "Rollback target activated: ${{ inputs.target_branch }}" >> "$GITHUB_STEP_SUMMARY"
