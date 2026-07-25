@@ -2,7 +2,7 @@ import { describe, expect, test, vi } from "vitest";
 
 import { buildWorkerBody } from "../../src/workforce/body-builder.js";
 import { planWorkforce } from "../../src/workforce/workforce-planner.js";
-import { runColony } from "../../src/colony/colony-controller.js";
+import { runColony, runOwnedColonies } from "../../src/colony/colony-controller.js";
 import { createColonySnapshot } from "../../src/colony/colony-snapshot.js";
 import { createInitialColonyMemory } from "../../src/colony/colony-state.js";
 import { runWorker } from "../../src/creeps/creep-runner.js";
@@ -1376,6 +1376,25 @@ describe("memory, console API, and observability", () => {
     expect(memory.config.visualsEnabled).toBe(false);
     expect(memory.colonies.W1N1.forceReplan).toBe(true);
     expect("reset" in ai).toBe(false);
+  });
+
+  test("owned-room execution honors visuals disabled through root console config", () => {
+    const worker = createWorker("worker-visual-config", 50);
+    const room = createRoom({ rcl: 2, structures: [createSpawn(300)], creeps: [worker] });
+    const memory = {
+      colonies: { W1N1: createInitialColonyMemory("W1N1", 2, 1) },
+      config: { visualsEnabled: false }
+    };
+
+    runOwnedColonies({
+      game: { time: 25, rooms: { W1N1: room }, creeps: { "worker-visual-config": worker } },
+      memory,
+      constants,
+      log: vi.fn(),
+      cpu: { getUsed: () => 1, bucket: 10000 }
+    });
+
+    expect(room.visual.text).not.toHaveBeenCalled();
   });
 });
 

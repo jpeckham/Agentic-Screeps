@@ -44,7 +44,8 @@ export function runOwnedColonies(options: Omit<ColonyRunOptions, "memory"> & {
     if (room.controller?.my) {
       const snapshot = createColonySnapshot(room, options.constants);
       const colonyMemory = ensureColonyMemory(options.memory, room.name, snapshot.rcl, options.game.time);
-      runColony({ ...options, memory: colonyMemory });
+      const config = options.config ?? options.memory.config;
+      runColony({ ...options, memory: colonyMemory, ...(config ? { config } : {}) });
     }
   }
 }
