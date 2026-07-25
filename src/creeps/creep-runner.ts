@@ -155,6 +155,9 @@ function chooseSource(
   snapshot: ColonySnapshot,
   memory: ColonyCreepMemory
 ): AnySource | undefined {
+  const adjacent = snapshot.sources.find((source) => isAdjacent(creep.pos, source.pos));
+  if (adjacent) return adjacent;
+
   const assignedCounts = sourceAssignmentCounts(snapshot);
   const assigned = snapshot.sources.find((source) => source.id && source.id === memory.assignment?.sourceId);
   if (assigned?.id) {
@@ -287,6 +290,10 @@ function canSpendWorkEnergy(creep: AnyCreep, constants: SnapshotConstants): bool
 
 function hasLivePart(creep: AnyCreep, partType: string): boolean {
   return (creep.body ?? []).some((part) => part.type === partType && (part.hits ?? 1) > 0);
+}
+
+function isAdjacent(left: { x: number; y: number } | undefined, right: { x: number; y: number } | undefined): boolean {
+  return Boolean(left && right && Math.max(Math.abs(left.x - right.x), Math.abs(left.y - right.y)) <= 1);
 }
 
 function isSource(value: unknown): value is AnySource {

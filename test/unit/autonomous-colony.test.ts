@@ -476,6 +476,26 @@ describe("colony execution", () => {
     expect(crowded.memory.assignment).toEqual(expect.objectContaining({ type: "harvest", sourceId: "source-b" }));
   });
 
+  test("harvests an adjacent source instead of walking to a stale assignment", () => {
+    const worker = createWorker("worker-adjacent-source", 0);
+    worker.pos = createPos(9, 10);
+    worker.memory.assignment = { type: "harvest", sourceId: "source-a" };
+    const farAssigned = createWorker("worker-far-assigned", 0);
+    farAssigned.memory.assignment = { type: "harvest", sourceId: "source-b" };
+    const farSource = { id: "source-a", pos: createPos(40, 40) };
+    const adjacentSource = { id: "source-b", pos: createPos(10, 10) };
+    const room = createRoom({
+      structures: [createSpawn()],
+      creeps: [worker, farAssigned],
+      sources: [farSource, adjacentSource]
+    });
+
+    runWorker(worker, createColonySnapshot(room, constants), constants);
+
+    expect(worker.memory.assignment).toEqual(expect.objectContaining({ type: "harvest", sourceId: "source-b" }));
+    expect(worker.harvest).toHaveBeenCalledWith(adjacentSource);
+  });
+
   test("clears invalid work assignments when targets no longer need energy", () => {
     const worker = createWorker("worker-1", 50);
     const fullSpawn = createSpawn(300);
