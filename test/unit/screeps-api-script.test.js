@@ -1,6 +1,10 @@
 import { afterEach, describe, expect, test } from "vitest";
 
-import { readConfig, screepsRequest } from "../../scripts/screeps-api.mjs";
+import {
+  readConfig,
+  screepsRequest,
+  uploadModules
+} from "../../scripts/screeps-api.mjs";
 
 const originalEnv = { ...process.env };
 
@@ -38,6 +42,21 @@ describe("Screeps API script config", () => {
       await expect(
         screepsRequest({ token: "token", host: "https://screeps.example" }, "/api/user/code/active")
       ).rejects.toThrow(/Malformed Screeps API response \(404\): expected JSON\./);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  test("accepts successful upload responses that omit legacy ok fields", async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async () => new Response(JSON.stringify({ timestamp: 1 }), { status: 200 });
+
+    try {
+      await expect(
+        uploadModules({ token: "token", host: "https://screeps.example" }, "agentic", {
+          main: "module.exports.loop = () => {};"
+        })
+      ).resolves.toBeUndefined();
     } finally {
       globalThis.fetch = originalFetch;
     }

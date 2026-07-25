@@ -48,11 +48,10 @@ function parseJson(text, status) {
 }
 
 export async function uploadModules(config, branch, modules) {
-  const body = await screepsRequest(config, "/api/user/code", {
+  await screepsRequest(config, "/api/user/code", {
     method: "POST",
     body: JSON.stringify({ branch, modules })
   });
-  if (body.ok !== 1 && body.ok !== true) throw new Error("Malformed upload response.");
 }
 
 export async function readModules(config, branch) {
