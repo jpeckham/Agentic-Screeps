@@ -971,6 +971,28 @@ describe("construction and tower policy", () => {
     expect(Math.max(Math.abs((plan?.x ?? 0) - source.pos.x), Math.abs((plan?.y ?? 0) - source.pos.y))).toBeGreaterThan(2);
   });
 
+  test("searches beyond the initial spawn ring after reserving source approach tiles", () => {
+    const source = { id: "source-a", pos: createPos(5, 19) };
+    const spawn = createSpawn();
+    spawn.pos = createPos(3, 18);
+    const room = createRoom({
+      rcl: 2,
+      structures: [spawn],
+      sources: [source],
+      terrainWalls: ["2,16", "2,20", "3,15", "3,16", "3,20", "3,21", "4,16", "4,20", "5,19", "5,20"]
+    });
+
+    const plan = planConstruction(
+      createColonySnapshot(room, constants),
+      createInitialColonyMemory("W1N1", 2, 1),
+      constants,
+      1
+    );
+
+    expect(plan).toEqual(expect.objectContaining({ structureType: "extension" }));
+    expect(Math.max(Math.abs((plan?.x ?? 0) - source.pos.x), Math.abs((plan?.y ?? 0) - source.pos.y))).toBeGreaterThan(2);
+  });
+
   test("removes existing non-container construction from source access tiles", () => {
     const badSite = {
       id: "bad-extension-site",

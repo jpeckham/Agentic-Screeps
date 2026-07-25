@@ -140,25 +140,7 @@ function firstOpenNear(
     [-1, 1],
     [1, 1]
   ] as const;
-  const nearbyOffsets = [
-    [2, 0],
-    [2, 1],
-    [2, -1],
-    [1, 2],
-    [1, -2],
-    [-1, 2],
-    [-1, -2],
-    [-2, 0],
-    [-2, 1],
-    [-2, -1],
-    [0, 2],
-    [0, -2],
-    [3, 0],
-    [0, 3],
-    [-3, 0],
-    [0, -3]
-  ] as const;
-  const offsets = adjacentOnly ? adjacentOffsets : nearbyOffsets;
+  const offsets = adjacentOnly ? adjacentOffsets : nearbyOffsets(8);
 
   for (const [dx, dy] of offsets) {
     const px = x + dx;
@@ -175,6 +157,18 @@ function isBuildable(snapshot: ColonySnapshot, x: number, y: number, structureTy
   if (occupied.has(positionKey(x, y))) return false;
   if (structureType !== "container" && isSourceReserveTile(snapshot, x, y)) return false;
   return preservesCriticalAccess(snapshot, x, y, occupied);
+}
+
+function nearbyOffsets(maxRange: number): Array<[number, number]> {
+  const offsets: Array<[number, number]> = [];
+  for (let range = 2; range <= maxRange; range += 1) {
+    for (let dy = -range; dy <= range; dy += 1) {
+      for (let dx = -range; dx <= range; dx += 1) {
+        if (Math.max(Math.abs(dx), Math.abs(dy)) === range) offsets.push([dx, dy]);
+      }
+    }
+  }
+  return offsets;
 }
 
 function isWall(snapshot: ColonySnapshot, x: number, y: number): boolean {
