@@ -311,7 +311,7 @@ function openSourceAccessTarget(
   creep: AnyCreep,
   source: AnySource,
   snapshot: ColonySnapshot
-): { pos: { x: number; y: number; roomName?: string } } | undefined {
+): { pos: { x: number; y: number; roomName?: string } } | { x: number; y: number; roomName: string } | undefined {
   if (!source.pos) return undefined;
   const occupied = new Set<string>();
   for (const other of [
@@ -326,7 +326,18 @@ function openSourceAccessTarget(
     .sort((left, right) =>
       rangeBetween(creep.pos, { x: left[0], y: left[1] }) - rangeBetween(creep.pos, { x: right[0], y: right[1] })
     )
-    .map(([x, y]) => ({ pos: { x, y, roomName: source.pos?.roomName ?? snapshot.roomName } }))[0];
+    .map(([x, y]) => createMoveTarget(x, y, source.pos?.roomName ?? snapshot.roomName))[0];
+}
+
+function createMoveTarget(
+  x: number,
+  y: number,
+  roomName: string
+): { pos: { x: number; y: number; roomName?: string } } | { x: number; y: number; roomName: string } {
+  const roomPosition = (globalThis as typeof globalThis & {
+    RoomPosition?: new (x: number, y: number, roomName: string) => { x: number; y: number; roomName: string };
+  }).RoomPosition;
+  return roomPosition ? new roomPosition(x, y, roomName) : { pos: { x, y, roomName } };
 }
 
 function canSpendWorkEnergy(creep: AnyCreep, constants: SnapshotConstants): boolean {

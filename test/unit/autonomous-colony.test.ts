@@ -559,6 +559,35 @@ describe("colony execution", () => {
     expect(worker.moveTo).toHaveBeenCalledWith(expect.objectContaining({ pos: expect.objectContaining({ x: 6, y: 18 }) }));
   });
 
+  test("uses a real RoomPosition for explicit harvest access movement when available", () => {
+    class FakeRoomPosition {
+      constructor(public x: number, public y: number, public roomName: string) {}
+    }
+    vi.stubGlobal("RoomPosition", FakeRoomPosition);
+    const worker = createWorker("worker-needs-room-position", 0);
+    worker.pos = createPos(3, 17);
+    worker.harvest.mockReturnValue(constants.ERR_NOT_IN_RANGE);
+    const firstHarvester = createWorker("worker-first-harvester", 0);
+    firstHarvester.pos = createPos(4, 18);
+    const secondHarvester = createWorker("worker-second-harvester", 0);
+    secondHarvester.pos = createPos(5, 18);
+    const source = { id: "source-local", pos: createPos(5, 19) };
+    const room = createRoom({
+      structures: [createSpawn()],
+      creeps: [worker, firstHarvester, secondHarvester],
+      sources: [source],
+      terrainWalls: ["4,19", "4,20", "5,19", "5,20", "6,19", "6,20"]
+    });
+
+    try {
+      runWorker(worker, createColonySnapshot(room, constants), constants);
+
+      expect(worker.moveTo).toHaveBeenCalledWith(expect.objectContaining({ x: 6, y: 18, roomName: "W1N1" }));
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   test("clears invalid work assignments when targets no longer need energy", () => {
     const worker = createWorker("worker-1", 50);
     const fullSpawn = createSpawn(300);
