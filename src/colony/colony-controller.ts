@@ -88,7 +88,7 @@ export function runColony(options: ColonyRunOptions): void {
     expiringWorkerCount: expiringWorkers.length,
     constructionSiteCount: snapshot.constructionSites.length
   });
-  memory.workforceTarget = plan.desiredWorkers;
+  updateWorkforceTarget(memory, plan.desiredWorkers, options.log);
   updateEmergencyState(memory, plan.emergency, viableWorkers.length === 0 ? "no viable workers" : "critical workers expiring", options.log);
 
   const spawnRequest = plan.spawnRequest && plan.spawnRequest.role === "worker" && replacementTarget
@@ -212,6 +212,18 @@ function updateEmergencyState(
     delete memory.lastEmergencyReason;
     log(`[colony ${memory.roomName}] emergency mode cleared`);
   }
+}
+
+function updateWorkforceTarget(
+  memory: ColonyMemory,
+  desiredWorkers: number,
+  log: (message: string) => void
+): void {
+  const previousTarget = memory.workforceTarget;
+  if (previousTarget > 0 && previousTarget !== desiredWorkers) {
+    log(`[colony ${memory.roomName}] workforce target changed: ${previousTarget} -> ${desiredWorkers}`);
+  }
+  memory.workforceTarget = desiredWorkers;
 }
 
 function hasWorkAndCarry(creep: { body?: Array<{ type: string; hits?: number }> }): boolean {

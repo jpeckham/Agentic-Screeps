@@ -247,6 +247,48 @@ describe("colony execution", () => {
     expect(worker.upgradeController).toHaveBeenCalledWith(room.controller);
   });
 
+  test("logs workforce target changes once", () => {
+    const workers = [
+      createWorker("worker-1", 0),
+      createWorker("worker-2", 0),
+      createWorker("worker-3", 0),
+      createWorker("worker-4", 0)
+    ];
+    const room = createRoom({ rcl: 2, structures: [createSpawn(300)], creeps: workers });
+    const memory = createInitialColonyMemory("W1N1", 2, 11);
+    memory.workforceTarget = 3;
+    const log = vi.fn();
+
+    runColony({
+      game: {
+        time: 11,
+        rooms: { W1N1: room },
+        creeps: Object.fromEntries(workers.map((worker) => [worker.name, worker]))
+      },
+      memory,
+      constants,
+      log,
+      cpu: { getUsed: () => 1, bucket: 10000 }
+    });
+
+    expect(log).toHaveBeenCalledWith("[colony W1N1] workforce target changed: 3 -> 4");
+
+    log.mockClear();
+    runColony({
+      game: {
+        time: 12,
+        rooms: { W1N1: room },
+        creeps: Object.fromEntries(workers.map((worker) => [worker.name, worker]))
+      },
+      memory,
+      constants,
+      log,
+      cpu: { getUsed: () => 1, bucket: 10000 }
+    });
+
+    expect(log).not.toHaveBeenCalledWith(expect.stringContaining("workforce target changed"));
+  });
+
   test("tags expiring worker replacements and avoids duplicate replacement spawns", () => {
     const expiring = createWorker("worker-old", 50, 100);
     const healthy = createWorker("worker-healthy", 50, 1400);
