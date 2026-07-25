@@ -438,6 +438,24 @@ describe("colony execution", () => {
     expect(worker.upgradeController).not.toHaveBeenCalled();
   });
 
+  test("honors configured repair threshold for critical infrastructure", () => {
+    const worker = createWorker("worker-repair-config", 50);
+    const damagedSpawn = { ...createSpawn(300), hits: 1750, hitsMax: 5000 };
+    const room = createRoom({ structures: [damagedSpawn], creeps: [worker] });
+
+    runColony({
+      game: { time: 45, rooms: { W1N1: room }, creeps: { "worker-repair-config": worker } },
+      memory: createInitialColonyMemory("W1N1", 2, 45),
+      constants,
+      log: vi.fn(),
+      cpu: { getUsed: () => 1, bucket: 10000 },
+      config: { repairThreshold: 0.3 }
+    });
+
+    expect(worker.repair).not.toHaveBeenCalled();
+    expect(worker.upgradeController).toHaveBeenCalledWith(room.controller);
+  });
+
   test("refills spawn before tower regardless of structure scan order", () => {
     const worker = createWorker("worker-refill-priority", 50);
     const tower = createTower(100);

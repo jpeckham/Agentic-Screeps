@@ -110,7 +110,10 @@ export function runColony(options: ColonyRunOptions): void {
   for (const creep of snapshot.workers) {
     try {
       runWorker(creep, snapshot, options.constants, {
-        controllerEmergencyThreshold: config.controllerEmergencyThreshold
+        controllerEmergencyThreshold: config.controllerEmergencyThreshold,
+        repairThreshold: config.repairThreshold,
+        roadRepairThreshold: config.roadRepairThreshold,
+        wallStarterThreshold: config.wallStarterThreshold
       });
     } catch (error) {
       options.log(`[colony ${memory.roomName}] creep ${creep.name} failed: ${error instanceof Error ? error.message : String(error)}`);

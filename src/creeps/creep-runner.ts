@@ -10,13 +10,23 @@ import type { ColonyCreepMemory } from "../colony/colony-state.js";
 
 export interface WorkerPriorityConfig {
   controllerEmergencyThreshold: number;
+  repairThreshold: number;
+  roadRepairThreshold: number;
+  wallStarterThreshold: number;
 }
+
+const DEFAULT_WORKER_PRIORITY_CONFIG: WorkerPriorityConfig = {
+  controllerEmergencyThreshold: 4000,
+  repairThreshold: 0.5,
+  roadRepairThreshold: 0.35,
+  wallStarterThreshold: 10000
+};
 
 export function runWorker(
   creep: AnyCreep,
   snapshot: ColonySnapshot,
   constants: SnapshotConstants,
-  config: WorkerPriorityConfig = { controllerEmergencyThreshold: 4000 }
+  config: WorkerPriorityConfig = DEFAULT_WORKER_PRIORITY_CONFIG
 ): void {
   const memory = ensureWorkerMemory(creep, snapshot.roomName);
   updateMode(creep, memory, constants);
@@ -108,7 +118,7 @@ function performWork(
     return;
   }
 
-  const criticalRepairTarget = findRepairTarget(snapshot, constants, true);
+  const criticalRepairTarget = findRepairTarget(snapshot, constants, true, config);
   if (criticalRepairTarget && creep.repair && canSpendWorkEnergy(creep, constants)) {
     memory.assignment = { type: "repair", ...(criticalRepairTarget.id ? { targetId: criticalRepairTarget.id } : {}) };
     actOrMove(creep, criticalRepairTarget, creep.repair(criticalRepairTarget), constants);
@@ -128,7 +138,7 @@ function performWork(
     return;
   }
 
-  const repairTarget = findRepairTarget(snapshot, constants, false);
+  const repairTarget = findRepairTarget(snapshot, constants, false, config);
   if (repairTarget && creep.repair && canSpendWorkEnergy(creep, constants)) {
     memory.assignment = { type: "repair", ...(repairTarget.id ? { targetId: repairTarget.id } : {}) };
     actOrMove(creep, repairTarget, creep.repair(repairTarget), constants);
@@ -227,18 +237,21 @@ function controllerNeedsPriority(snapshot: ColonySnapshot, config: WorkerPriorit
 function findRepairTarget(
   snapshot: ColonySnapshot,
   constants: SnapshotConstants,
-  criticalOnly: boolean
+  criticalOnly: boolean,
+  config: WorkerPriorityConfig
 ): AnyStructure | undefined {
   return snapshot.damagedStructures.find((structure) => {
     if (!structure.hits || !structure.hitsMax) return false;
     if (structure.structureType === "constructedWall" || structure.structureType === "rampart") {
-      return !criticalOnly && structure.hits < 10000;
+      return !criticalOnly && structure.hits < config.wallStarterThreshold;
     }
     if (structure.structureType === constants.STRUCTURE_ROAD) {
-      return !criticalOnly && structure.hits / structure.hitsMax < 0.35;
+      return !criticalOnly && structure.hits / structure.hitsMax < config.roadRepairThreshold;
     }
     const ratio = structure.hits / structure.hitsMax;
-    return criticalOnly ? ratio < 0.4 : ratio < 0.5;
+    return criticalOnly
+      ? ratio < Math.min(0.4, config.repairThreshold)
+      : ratio < config.repairThreshold;
   });
 }
 
