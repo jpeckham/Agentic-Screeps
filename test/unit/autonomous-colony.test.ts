@@ -39,6 +39,7 @@ function createRoom(options: Partial<{
   constructionSites: unknown[];
   creeps: unknown[];
   hostiles: unknown[];
+  sources: unknown[];
   structures: unknown[];
   terrainWalls: string[];
 }> = {}) {
@@ -46,7 +47,7 @@ function createRoom(options: Partial<{
   const creeps = options.creeps ?? [];
   const constructionSites = options.constructionSites ?? [];
   const hostiles = options.hostiles ?? [];
-  const sources = [
+  const sources = options.sources ?? [
     { id: "source-a", pos: createPos(10, 10) },
     { id: "source-b", pos: createPos(40, 40) }
   ];
@@ -357,6 +358,18 @@ describe("colony execution", () => {
 
     expect(worker.withdraw).toHaveBeenCalledWith(container, "energy");
     expect(worker.harvest).not.toHaveBeenCalled();
+  });
+
+  test("partially loaded worker switches to work when no energy source is available", () => {
+    const worker = createWorker("worker-partial", 25);
+    worker.memory.mode = "acquire";
+    const spawn = createSpawn(300);
+    const room = createRoom({ structures: [spawn], creeps: [worker], sources: [] });
+
+    runWorker(worker, createColonySnapshot(room, constants), constants);
+
+    expect(worker.memory.mode).toBe("work");
+    expect(worker.upgradeController).toHaveBeenCalledWith(room.controller);
   });
 
   test("persists source assignments and balances workers across sources", () => {
@@ -715,6 +728,86 @@ describe("construction and tower policy", () => {
 });
 
 describe("integration scenarios", () => {
+  test("scenario B: total workforce death enters emergency and rebuilds normal operation", () => {
+    const log = vi.fn();
+    const memory = createInitialColonyMemory("W1N1", 2, 70);
+    memory.emergency = false;
+    memory.workforceTarget = 4;
+    const bootstrapSpawn = createSpawn(200);
+    const deadRoom = Object.assign(createRoom({
+      rcl: 2,
+      structures: [bootstrapSpawn],
+      energyAvailable: 200,
+      energyCapacityAvailable: 550
+    }), {
+      createConstructionSite: vi.fn(() => constants.OK)
+    });
+
+    runColony({
+      game: { time: 70, rooms: { W1N1: deadRoom }, creeps: {} },
+      memory,
+      constants,
+      log,
+      cpu: { getUsed: () => 1, bucket: 10000 }
+    });
+
+    expect(memory.emergency).toBe(true);
+    expect(log).toHaveBeenCalledWith("[colony W1N1] emergency mode entered: no viable workers");
+    expect(deadRoom.createConstructionSite).not.toHaveBeenCalled();
+    expect(bootstrapSpawn.spawnCreep).toHaveBeenCalledWith(
+      ["work", "carry", "move"],
+      expect.stringMatching(/^emergency-worker-/),
+      expect.objectContaining({
+        memory: expect.objectContaining({ role: "emergency-worker", mode: "acquire" })
+      })
+    );
+
+    const emergencyHarvester = createWorker("emergency-worker-70", 0);
+    emergencyHarvester.memory.role = "emergency-worker";
+    emergencyHarvester.memory.mode = "acquire";
+    const harvestRoom = createRoom({
+      rcl: 2,
+      structures: [createSpawn(300)],
+      creeps: [emergencyHarvester],
+      energyAvailable: 300,
+      energyCapacityAvailable: 550
+    });
+
+    runColony({
+      game: { time: 71, rooms: { W1N1: harvestRoom }, creeps: { "emergency-worker-70": emergencyHarvester } },
+      memory,
+      constants,
+      log,
+      cpu: { getUsed: () => 1, bucket: 10000 }
+    });
+
+    expect(emergencyHarvester.harvest).toHaveBeenCalled();
+
+    const emergencyRefiller = createWorker("emergency-worker-70", 50);
+    emergencyRefiller.memory.role = "emergency-worker";
+    emergencyRefiller.memory.mode = "work";
+    const needySpawn = createSpawn(0);
+    const refillRoom = createRoom({
+      rcl: 2,
+      structures: [needySpawn],
+      creeps: [emergencyRefiller],
+      energyAvailable: 0,
+      energyCapacityAvailable: 550
+    });
+
+    runColony({
+      game: { time: 72, rooms: { W1N1: refillRoom }, creeps: { "emergency-worker-70": emergencyRefiller } },
+      memory,
+      constants,
+      log,
+      cpu: { getUsed: () => 1, bucket: 10000 }
+    });
+
+    expect(emergencyRefiller.transfer).toHaveBeenCalledWith(needySpawn, "energy");
+    expect(memory.emergency).toBe(false);
+    expect(log).toHaveBeenCalledWith("[colony W1N1] emergency mode cleared");
+  });
+
   test("scenario C: RCL2 transition plans extensions, builds them, and spawns stronger bodies", () => {
     const log = vi.fn();
     const memory = createInitialColonyMemory("W1N1", 1, 100);

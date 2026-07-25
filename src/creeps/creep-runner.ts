@@ -22,7 +22,12 @@ export function runWorker(
   updateMode(creep, memory, constants);
 
   if (memory.mode === "acquire") {
-    acquireEnergy(creep, snapshot, constants, memory);
+    const acquired = acquireEnergy(creep, snapshot, constants, memory);
+    const used = creep.store?.getUsedCapacity(constants.RESOURCE_ENERGY) ?? 0;
+    if (!acquired && used > 0) {
+      memory.mode = "work";
+      performWork(creep, snapshot, constants, memory, config);
+    }
     return;
   }
 
@@ -56,7 +61,7 @@ function acquireEnergy(
   snapshot: ColonySnapshot,
   constants: SnapshotConstants,
   memory: ColonyCreepMemory
-): void {
+): boolean {
   const storage = snapshot.energyStructures.find((structure) =>
     [constants.STRUCTURE_CONTAINER, constants.STRUCTURE_STORAGE].includes(structure.structureType ?? "") &&
     (structure.store?.getUsedCapacity(constants.RESOURCE_ENERGY) ?? 0) > 0
@@ -64,14 +69,16 @@ function acquireEnergy(
   if (storage && creep.withdraw && hasLivePart(creep, constants.CARRY)) {
     memory.assignment = { type: "harvest", ...(storage.id ? { targetId: storage.id } : {}) };
     actOrMove(creep, storage, creep.withdraw(storage, constants.RESOURCE_ENERGY), constants);
-    return;
+    return true;
   }
 
   const source = chooseSource(creep, snapshot, memory);
   if (source && creep.harvest && hasLivePart(creep, constants.WORK) && hasLivePart(creep, constants.CARRY)) {
     memory.assignment = { type: "harvest", ...(source.id ? { sourceId: source.id } : {}) };
     actOrMove(creep, source, creep.harvest(source), constants);
+    return true;
   }
+  return false;
 }
 
 function performWork(
