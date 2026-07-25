@@ -109,6 +109,18 @@ function performWork(
 
   const criticalBuild = findBuildTarget(snapshot, constants, true);
   if (
+    memory.assignment?.type === "upgrade" &&
+    snapshot.controller &&
+    creep.upgradeController &&
+    canSpendWorkEnergy(creep, constants) &&
+    (!criticalBuild || criticalBuildBuilderCount(snapshot, criticalBuild) >= 2)
+  ) {
+    memory.assignment = { type: "upgrade", ...(snapshot.controller.id ? { targetId: snapshot.controller.id } : {}) };
+    actOrMove(creep, snapshot.controller, creep.upgradeController(snapshot.controller), constants);
+    return;
+  }
+
+  if (
     criticalBuild &&
     criticalBuildSaturated(snapshot, constants, criticalBuild) &&
     snapshot.controller &&
@@ -277,6 +289,14 @@ function criticalBuildSaturated(
   criticalBuild: AnyConstructionSite
 ): boolean {
   const builderLimit = criticalBuildBuilderLimit(snapshot, constants, criticalBuild);
+  const builders = criticalBuildBuilderCount(snapshot, criticalBuild);
+  return builders >= builderLimit;
+}
+
+function criticalBuildBuilderCount(
+  snapshot: ColonySnapshot,
+  criticalBuild: AnyConstructionSite
+): number {
   const criticalSiteIds = new Set(
     snapshot.constructionSites
       .filter((site) => site.structureType === criticalBuild.structureType && site.id)
@@ -297,7 +317,7 @@ function criticalBuildSaturated(
       builders += 1;
     }
   }
-  return builders >= builderLimit;
+  return builders;
 }
 
 function criticalBuildBuilderLimit(
