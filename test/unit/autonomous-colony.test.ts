@@ -1396,6 +1396,21 @@ describe("memory, console API, and observability", () => {
 
     expect(room.visual.text).not.toHaveBeenCalled();
   });
+
+  test("owned-room execution reuses one tick-local room snapshot", () => {
+    const worker = createWorker("worker-snapshot", 50);
+    const room = createRoom({ rcl: 2, structures: [createSpawn(300)], creeps: [worker] });
+
+    runOwnedColonies({
+      game: { time: 26, rooms: { W1N1: room }, creeps: { "worker-snapshot": worker } },
+      memory: { colonies: { W1N1: createInitialColonyMemory("W1N1", 2, 1) } },
+      constants,
+      log: vi.fn(),
+      cpu: { getUsed: () => 1, bucket: 10000 }
+    });
+
+    expect(room.find).toHaveBeenCalledTimes(6);
+  });
 });
 
 function bodyCost(body: string[]): number {

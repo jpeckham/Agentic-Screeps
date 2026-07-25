@@ -35,6 +35,7 @@ export interface ColonyRunOptions {
   log: (message: string) => void;
   cpu: { getUsed(): number; bucket?: number };
   config?: Partial<ColonyConfig>;
+  snapshot?: ReturnType<typeof createColonySnapshot>;
 }
 
 export function runOwnedColonies(options: Omit<ColonyRunOptions, "memory"> & {
@@ -45,7 +46,7 @@ export function runOwnedColonies(options: Omit<ColonyRunOptions, "memory"> & {
       const snapshot = createColonySnapshot(room, options.constants);
       const colonyMemory = ensureColonyMemory(options.memory, room.name, snapshot.rcl, options.game.time);
       const config = options.config ?? options.memory.config;
-      runColony({ ...options, memory: colonyMemory, ...(config ? { config } : {}) });
+      runColony({ ...options, memory: colonyMemory, snapshot, ...(config ? { config } : {}) });
     }
   }
 }
@@ -56,7 +57,7 @@ export function runColony(options: ColonyRunOptions): void {
   const room = options.game.rooms[roomName];
   if (!room) return;
 
-  const snapshot = createColonySnapshot(room, options.constants);
+  const snapshot = options.snapshot ?? createColonySnapshot(room, options.constants);
   const memory = "roomName" in options.memory
     ? options.memory
     : ensureColonyMemory(options.memory, room.name, snapshot.rcl, options.game.time);
