@@ -164,6 +164,9 @@ function chooseSource(
   const adjacent = snapshot.sources.find((source) => isAdjacent(creep.pos, source.pos));
   if (adjacent) return adjacent;
 
+  const nearby = nearestSourceWithin(creep, snapshot.sources, 3);
+  if (nearby) return nearby;
+
   const assignedCounts = sourceAssignmentCounts(snapshot);
   const assigned = snapshot.sources.find((source) => source.id && source.id === memory.assignment?.sourceId);
   if (assigned?.id) {
@@ -304,6 +307,17 @@ function inRange(left: { x: number; y: number } | undefined, right: { x: number;
 
 function isAdjacent(left: { x: number; y: number } | undefined, right: { x: number; y: number } | undefined): boolean {
   return inRange(left, right, 1);
+}
+
+function nearestSourceWithin(creep: AnyCreep, sources: AnySource[], range: number): AnySource | undefined {
+  return sources
+    .filter((source) => inRange(creep.pos, source.pos, range))
+    .sort((left, right) => rangeBetween(creep.pos, left.pos) - rangeBetween(creep.pos, right.pos))[0];
+}
+
+function rangeBetween(left: { x: number; y: number } | undefined, right: { x: number; y: number } | undefined): number {
+  if (!left || !right) return Number.POSITIVE_INFINITY;
+  return Math.max(Math.abs(left.x - right.x), Math.abs(left.y - right.y));
 }
 
 function isSource(value: unknown): value is AnySource {

@@ -517,6 +517,27 @@ describe("colony execution", () => {
     expect(worker.harvest).toHaveBeenCalledWith(adjacentSource);
   });
 
+  test("prefers a nearby source over a distant underassigned source", () => {
+    const worker = createWorker("worker-near-local-source", 0);
+    worker.pos = createPos(3, 17);
+    const localAssigned = createWorker("worker-local-assigned", 0);
+    localAssigned.memory.assignment = { type: "harvest", sourceId: "source-local" };
+    const localBuilder = createWorker("worker-local-builder", 40);
+    localBuilder.memory.assignment = { type: "build", targetId: "site-1" };
+    const localSource = { id: "source-local", pos: createPos(5, 19) };
+    const distantSource = { id: "source-distant", pos: createPos(19, 7) };
+    const room = createRoom({
+      structures: [createSpawn()],
+      creeps: [worker, localAssigned, localBuilder],
+      sources: [localSource, distantSource]
+    });
+
+    runWorker(worker, createColonySnapshot(room, constants), constants);
+
+    expect(worker.memory.assignment).toEqual(expect.objectContaining({ type: "harvest", sourceId: "source-local" }));
+    expect(worker.harvest).toHaveBeenCalledWith(localSource);
+  });
+
   test("clears invalid work assignments when targets no longer need energy", () => {
     const worker = createWorker("worker-1", 50);
     const fullSpawn = createSpawn(300);
