@@ -2,7 +2,6 @@ export interface UploadingClient {
   uploadModules(branch: string, modules: Record<string, string>): Promise<void>;
   getActiveBranch(): Promise<string>;
   readModules(branch: string): Promise<Record<string, string>>;
-  activateBranch(branch: string): Promise<void>;
 }
 
 export interface ReleaseDeployment {
@@ -29,19 +28,6 @@ export async function deployLive(
   await options.client.uploadModules(options.branch, options.modules);
   await verifyRemoteCandidate(options);
   return { activeBranch, deployedBranch: options.branch };
-}
-
-export async function activateVerifiedRelease(
-  options: ReleaseDeployment
-): Promise<{ previousBranch: string; activatedBranch: string }> {
-  const previousBranch = await options.client.getActiveBranch();
-  if (previousBranch === options.branch) {
-    throw new Error("Target branch is already active.");
-  }
-  await options.client.uploadModules(options.branch, options.modules);
-  await verifyRemoteCandidate(options);
-  await options.client.activateBranch(options.branch);
-  return { previousBranch, activatedBranch: options.branch };
 }
 
 async function verifyRemoteCandidate(options: ReleaseDeployment): Promise<void> {

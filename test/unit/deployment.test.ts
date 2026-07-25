@@ -9,7 +9,6 @@ import {
   ScreepsClient
 } from "../../src/deploy/screeps-client.js";
 import {
-  activateVerifiedRelease,
   deployCandidate,
   deployLive
 } from "../../src/deploy/workflows.js";
@@ -151,38 +150,6 @@ describe("deployment workflows", () => {
       main: "release-abc12345 code"
     });
     expect(client.activateBranch).not.toHaveBeenCalled();
-  });
-
-  test("activation records previous branch and refuses unverified releases", async () => {
-    const client = {
-      uploadModules: vi.fn().mockResolvedValue(undefined),
-      getActiveBranch: vi.fn().mockResolvedValue("main"),
-      readModules: vi.fn().mockResolvedValue({ main: "missing release" }),
-      activateBranch: vi.fn()
-    };
-
-    await expect(
-      activateVerifiedRelease({
-        client,
-        branch: "release-abc12345",
-        modules: { main: "release-abc12345 code" },
-        releaseId: "release-abc12345",
-        entryModule: "main"
-      })
-    ).rejects.toThrow(/verified/i);
-    expect(client.activateBranch).not.toHaveBeenCalled();
-
-    client.readModules.mockResolvedValue({ main: "release-abc12345 code" });
-    const result = await activateVerifiedRelease({
-      client,
-      branch: "release-abc12345",
-      modules: { main: "release-abc12345 code" },
-      releaseId: "release-abc12345",
-      entryModule: "main"
-    });
-
-    expect(result.previousBranch).toBe("main");
-    expect(client.activateBranch).toHaveBeenCalledWith("release-abc12345");
   });
 
 });

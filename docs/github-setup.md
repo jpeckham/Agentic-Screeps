@@ -14,7 +14,7 @@ Environment variables:
 Branch protection for `main`:
 
 - Require pull request reviews.
-- Require `Pull Request / verify`.
+- Require `CI/CD / Build and test`.
 - Require branches to be up to date before merge if your team uses linear release gates.
 - Prevent force pushes.
 
@@ -22,4 +22,4 @@ Workflow permissions should default to read-only. The workflows in this repo req
 
 Create a narrowly scoped Screeps auth token. Store it only as an environment secret named `SCREEPS_TOKEN`; never place it in `.env`, command history, artifact files, branch names, URLs, or logs. Enable secret scanning/push protection if available for the repository.
 
-Auto deploy uses concurrency group `screeps-agentic-live`, so pushes to `main` deploy serially.
+CI/CD uses concurrency group `ci-cd-${{ github.ref }}`. Pull request runs are superseded by newer commits, while `main` deploys run serially.

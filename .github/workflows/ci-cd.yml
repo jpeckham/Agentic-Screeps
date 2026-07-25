@@ -1,6 +1,8 @@
-name: Auto Deploy
+name: CI/CD
 
 on:
+  pull_request:
+    branches: [main]
   push:
     branches: [main]
   workflow_dispatch:
@@ -9,11 +11,45 @@ permissions:
   contents: read
 
 concurrency:
-  group: screeps-agentic-live
-  cancel-in-progress: false
+  group: ci-cd-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  verify:
+    name: Build and test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Verify
+        run: npm run verify
+
+      - name: Read release id
+        id: manifest
+        run: |
+          echo "release_id=$(node -e "console.log(require('./dist/release-manifest.json').releaseId)")" >> "$GITHUB_OUTPUT"
+
+      - name: Upload immutable release artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: screeps-${{ steps.manifest.outputs.release_id }}
+          path: dist/
+          if-no-files-found: error
+
   deploy:
+    name: Deploy to Screeps
+    if: github.event_name != 'pull_request'
+    needs: verify
     runs-on: ubuntu-latest
     environment: screeps-production
     steps:
@@ -29,20 +65,15 @@ jobs:
       - name: Install
         run: npm ci
 
-      - name: Verify and build
-        run: npm run verify
-
-      - name: Read release id
-        id: manifest
-        run: |
-          echo "release_id=$(node -e "console.log(require('./dist/release-manifest.json').releaseId)")" >> "$GITHUB_OUTPUT"
-
-      - name: Upload immutable release artifact
-        uses: actions/upload-artifact@v4
+      - name: Download release artifact
+        uses: actions/download-artifact@v4
         with:
-          name: screeps-${{ steps.manifest.outputs.release_id }}
-          path: dist/
-          if-no-files-found: error
+          pattern: screeps-*
+          path: dist
+          merge-multiple: true
+
+      - name: Verify downloaded artifact
+        run: node scripts/verify-release.mjs dist/release-manifest.json
 
       - name: Deploy to Screeps agentic branch
         env:
@@ -53,6 +84,5 @@ jobs:
 
       - name: Summary
         run: |
-          echo "Release: ${{ steps.manifest.outputs.release_id }}" >> "$GITHUB_STEP_SUMMARY"
           echo "Screeps branch: agentic" >> "$GITHUB_STEP_SUMMARY"
-          echo "Main is the production gate; this workflow auto-deployed after verification." >> "$GITHUB_STEP_SUMMARY"
+          echo "Main is the production gate; this workflow deployed after verification." >> "$GITHUB_STEP_SUMMARY"
