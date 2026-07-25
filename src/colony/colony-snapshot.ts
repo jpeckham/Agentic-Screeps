@@ -39,6 +39,7 @@ export type AnyRoom = {
   energyCapacityAvailable?: number;
   controller?: AnyController;
   find(type: number): unknown[];
+  getTerrain?: () => { get(x: number, y: number): string | number };
   visual?: { text(message: string, x: number, y: number, options?: Record<string, unknown>): unknown };
 };
 

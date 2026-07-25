@@ -40,6 +40,7 @@ function createRoom(options: Partial<{
   creeps: unknown[];
   hostiles: unknown[];
   structures: unknown[];
+  terrainWalls: string[];
 }> = {}) {
   const structures = options.structures ?? [];
   const creeps = options.creeps ?? [];
@@ -62,6 +63,11 @@ function createRoom(options: Partial<{
     energyCapacityAvailable: options.energyCapacityAvailable ?? 300,
     controller,
     visual: { text: vi.fn() },
+    getTerrain: vi.fn(() => ({
+      get: vi.fn((x: number, y: number) =>
+        (options.terrainWalls ?? []).includes(`${x},${y}`) ? "wall" : "plain"
+      )
+    })),
     find: vi.fn((constant: number) => {
       if (constant === constants.FIND_MY_STRUCTURES) return structures;
       if (constant === constants.FIND_STRUCTURES) return structures;
@@ -360,6 +366,43 @@ describe("construction and tower policy", () => {
     const rcl3Room = createRoom({ rcl: 3, structures: [createSpawn()] });
     expect(planConstruction(createColonySnapshot(rcl3Room, constants), createInitialColonyMemory("W1N1", 3, 1), constants, 10))
       .toEqual(expect.objectContaining({ structureType: "tower" }));
+  });
+
+  test("does not place construction on duplicate occupied positions or walls", () => {
+    const duplicateSite = {
+      id: "site-1",
+      structureType: constants.STRUCTURE_EXTENSION,
+      pos: createPos(22, 20)
+    };
+    const duplicateRoom = createRoom({
+      rcl: 2,
+      structures: [createSpawn()],
+      constructionSites: [duplicateSite]
+    });
+    const duplicatePlan = planConstruction(
+      createColonySnapshot(duplicateRoom, constants),
+      createInitialColonyMemory("W1N1", 2, 1),
+      constants,
+      1
+    );
+
+    expect(duplicatePlan).toEqual(expect.objectContaining({ structureType: "extension" }));
+    expect(duplicatePlan).not.toEqual(expect.objectContaining({ x: 22, y: 20 }));
+
+    const wallRoom = createRoom({
+      rcl: 2,
+      structures: [createSpawn()],
+      terrainWalls: ["22,20"]
+    });
+    const wallPlan = planConstruction(
+      createColonySnapshot(wallRoom, constants),
+      createInitialColonyMemory("W1N1", 2, 1),
+      constants,
+      1
+    );
+
+    expect(wallPlan).toEqual(expect.objectContaining({ structureType: "extension" }));
+    expect(wallPlan).not.toEqual(expect.objectContaining({ x: 22, y: 20 }));
   });
 
   test("plans containers and RCL4 storage after critical extension and tower demand", () => {
