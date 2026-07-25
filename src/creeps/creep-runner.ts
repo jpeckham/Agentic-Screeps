@@ -160,13 +160,32 @@ function chooseSource(
 }
 
 function findRefillTarget(snapshot: ColonySnapshot, constants: SnapshotConstants): AnyStructure | undefined {
-  return snapshot.energyStructures.find((structure) => {
-    if (structure.structureType === constants.STRUCTURE_TOWER) {
-      return (structure.store?.getFreeCapacity(constants.RESOURCE_ENERGY) ?? 0) > 0 &&
-        (structure.store?.getUsedCapacity(constants.RESOURCE_ENERGY) ?? 0) < 500;
-    }
-    return (structure.store?.getFreeCapacity(constants.RESOURCE_ENERGY) ?? 0) > 0;
-  });
+  const priorities = [
+    constants.STRUCTURE_SPAWN,
+    constants.STRUCTURE_EXTENSION,
+    constants.STRUCTURE_TOWER
+  ];
+  return snapshot.energyStructures
+    .filter((structure) => needsEnergy(structure, constants))
+    .sort((left, right) =>
+      priorities.indexOf(left.structureType ?? "") - priorities.indexOf(right.structureType ?? "")
+    )[0];
+}
+
+function needsEnergy(structure: AnyStructure, constants: SnapshotConstants): boolean {
+  if (![
+    constants.STRUCTURE_SPAWN,
+    constants.STRUCTURE_EXTENSION,
+    constants.STRUCTURE_TOWER
+  ].includes(structure.structureType ?? "")) {
+    return false;
+  }
+  const free = structure.store?.getFreeCapacity(constants.RESOURCE_ENERGY) ?? 0;
+  if (free <= 0) return false;
+  if (structure.structureType === constants.STRUCTURE_TOWER) {
+    return (structure.store?.getUsedCapacity(constants.RESOURCE_ENERGY) ?? 0) < 500;
+  }
+  return true;
 }
 
 function findBuildTarget(

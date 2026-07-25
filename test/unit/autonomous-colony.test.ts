@@ -382,6 +382,18 @@ describe("colony execution", () => {
     expect(worker.upgradeController).not.toHaveBeenCalled();
   });
 
+  test("refills spawn before tower regardless of structure scan order", () => {
+    const worker = createWorker("worker-refill-priority", 50);
+    const tower = createTower(100);
+    const spawn = createSpawn(0);
+    const room = createRoom({ structures: [tower, spawn], creeps: [worker] });
+
+    runWorker(worker, createColonySnapshot(room, constants), constants);
+
+    expect(worker.transfer).toHaveBeenCalledWith(spawn, "energy");
+    expect(worker.transfer).not.toHaveBeenCalledWith(tower, "energy");
+  });
+
   test("does not attempt work actions without required live body parts", () => {
     const noWorkHarvester = createWorker("worker-no-work", 0);
     noWorkHarvester.body = [{ type: constants.CARRY }, { type: constants.MOVE }];
