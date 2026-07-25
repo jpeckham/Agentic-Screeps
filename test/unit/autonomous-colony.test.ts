@@ -1213,6 +1213,71 @@ describe("integration scenarios", () => {
 });
 
 describe("memory, console API, and observability", () => {
+  test("logs concise colony status only at the configured interval", () => {
+    const harvester = createWorker("worker-1", 0);
+    const deliverer = createWorker("worker-2", 50);
+    const upgrader = createWorker("worker-3", 50);
+    const builder = createWorker("worker-4", 50);
+    const workers = [
+      harvester,
+      deliverer,
+      upgrader,
+      builder
+    ];
+    harvester.memory.assignment = { type: "harvest", sourceId: "source-a" };
+    deliverer.memory.assignment = { type: "deliver", targetId: "spawn-1" };
+    upgrader.memory.assignment = { type: "upgrade", targetId: "controller" };
+    builder.memory.assignment = { type: "build", targetId: "site-1" };
+    const room = createRoom({
+      rcl: 2,
+      structures: [createSpawn(300)],
+      creeps: workers,
+      energyAvailable: 300,
+      energyCapacityAvailable: 550,
+      constructionSites: [{ id: "site-1", structureType: constants.STRUCTURE_EXTENSION, pos: createPos(22, 20) }]
+    });
+    const memory = createInitialColonyMemory("W1N1", 2, 1);
+    memory.lastPlanTick = 1;
+    memory.workforceTarget = 4;
+    const log = vi.fn();
+
+    runColony({
+      game: { time: 9, rooms: { W1N1: room }, creeps: Object.fromEntries(workers.map((worker) => [worker.name, worker])) },
+      memory,
+      constants,
+      log,
+      cpu: { getUsed: () => 1, bucket: 10000 },
+      config: { statusLogInterval: 10, planningCadence: 100 }
+    });
+    expect(log).not.toHaveBeenCalledWith(expect.stringContaining("status:"));
+
+    runColony({
+      game: { time: 10, rooms: { W1N1: room }, creeps: Object.fromEntries(workers.map((worker) => [worker.name, worker])) },
+      memory,
+      constants,
+      log,
+      cpu: { getUsed: () => 1.5, bucket: 10000 },
+      config: { statusLogInterval: 10, planningCadence: 100 }
+    });
+
+    expect(log).toHaveBeenCalledWith(
+      "[colony W1N1] status: RCL 2 NORMAL energy 300/550 workers 4/4 assignments H1 D0 U0 B3 R0 sites 1 cpu 0.0"
+    );
+    expect(memory.lastStatusLog).toBe(10);
+
+    log.mockClear();
+    runColony({
+      game: { time: 19, rooms: { W1N1: room }, creeps: Object.fromEntries(workers.map((worker) => [worker.name, worker])) },
+      memory,
+      constants,
+      log,
+      cpu: { getUsed: () => 1, bucket: 10000 },
+      config: { statusLogInterval: 10, planningCadence: 100 }
+    });
+
+    expect(log).not.toHaveBeenCalledWith(expect.stringContaining("status:"));
+  });
+
   test("cleans only dead creep memory and keeps unrelated memory", () => {
     const memory = {
       creeps: {

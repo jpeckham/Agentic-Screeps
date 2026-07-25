@@ -95,6 +95,17 @@ export function runColony(options: ColonyRunOptions): void {
     ? { ...plan.spawnRequest, replacing: replacementTarget.name }
     : plan.spawnRequest;
   spawnFromPlan(snapshot, memory, spawnRequest, options);
+  maybeLogStatus({
+    snapshot,
+    memory,
+    desiredWorkers: plan.desiredWorkers,
+    tick: options.game.time,
+    interval: config.statusLogInterval,
+    cpuUsed: options.cpu.getUsed() - cpuStart,
+    log: options.log,
+    cpuBucket: options.cpu.bucket ?? 10000,
+    lowCpuBucket: config.lowCpuBucket
+  });
 
   for (const creep of snapshot.workers) {
     try {
@@ -231,6 +242,56 @@ function updateWorkforceTarget(
     log(`[colony ${memory.roomName}] workforce target changed: ${previousTarget} -> ${desiredWorkers}`);
   }
   memory.workforceTarget = desiredWorkers;
+}
+
+function maybeLogStatus(options: {
+  snapshot: ReturnType<typeof createColonySnapshot>;
+  memory: ColonyMemory;
+  desiredWorkers: number;
+  tick: number;
+  interval: number;
+  cpuUsed: number;
+  log: (message: string) => void;
+  cpuBucket: number;
+  lowCpuBucket: number;
+}): void {
+  if (options.interval <= 0 || options.cpuBucket < options.lowCpuBucket) return;
+  const lastLog = options.memory.lastStatusLog ?? 0;
+  if (options.tick - lastLog < options.interval) return;
+
+  const assignments = countAssignments(options.snapshot.workers);
+  const mode = options.memory.emergency ? "EMERGENCY" : "NORMAL";
+  options.log(
+    `[colony ${options.memory.roomName}] status: RCL ${options.snapshot.rcl} ${mode} ` +
+    `energy ${options.snapshot.energyAvailable}/${options.snapshot.energyCapacityAvailable} ` +
+    `workers ${options.snapshot.workers.length}/${options.desiredWorkers} ` +
+    `assignments H${assignments.harvest} D${assignments.deliver} U${assignments.upgrade} B${assignments.build} R${assignments.repair} ` +
+    `sites ${options.snapshot.constructionSites.length} cpu ${options.cpuUsed.toFixed(1)}`
+  );
+  options.memory.lastStatusLog = options.tick;
+}
+
+function countAssignments(workers: ReturnType<typeof createColonySnapshot>["workers"]): {
+  harvest: number;
+  deliver: number;
+  upgrade: number;
+  build: number;
+  repair: number;
+} {
+  const counts = { harvest: 0, deliver: 0, upgrade: 0, build: 0, repair: 0 };
+  for (const worker of workers) {
+    const assignment = worker.memory?.["assignment"];
+    if (isAssignmentType(assignment, "harvest")) counts.harvest += 1;
+    if (isAssignmentType(assignment, "deliver")) counts.deliver += 1;
+    if (isAssignmentType(assignment, "upgrade")) counts.upgrade += 1;
+    if (isAssignmentType(assignment, "build")) counts.build += 1;
+    if (isAssignmentType(assignment, "repair")) counts.repair += 1;
+  }
+  return counts;
+}
+
+function isAssignmentType(value: unknown, type: string): boolean {
+  return typeof value === "object" && value !== null && "type" in value && value.type === type;
 }
 
 function logConstructionPlanUpdated(
