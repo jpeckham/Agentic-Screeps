@@ -97,7 +97,9 @@ export function runColony(options: ColonyRunOptions): void {
   spawnFromPlan(snapshot, memory, spawnRequest, options);
 
   for (const creep of snapshot.workers) {
-    runWorker(creep, snapshot, options.constants);
+    runWorker(creep, snapshot, options.constants, {
+      controllerEmergencyThreshold: config.controllerEmergencyThreshold
+    });
   }
 
   if (!memory.emergency && (options.cpu.bucket ?? 10000) >= config.lowCpuBucket) {

@@ -482,6 +482,26 @@ describe("colony execution", () => {
 
     expect(room.createConstructionSite).toHaveBeenCalledWith(expect.any(Number), expect.any(Number), "extension");
   });
+
+  test("uses configured controller downgrade threshold before construction", () => {
+    const worker = createWorker("worker-controller-risk", 50);
+    const spawn = createSpawn(300);
+    const buildSite = { id: "site-1", structureType: constants.STRUCTURE_EXTENSION, pos: createPos(22, 20) };
+    const room = createRoom({ structures: [spawn], creeps: [worker], constructionSites: [buildSite] });
+    room.controller.ticksToDowngrade = 9000;
+
+    runColony({
+      game: { time: 50, rooms: { W1N1: room }, creeps: { "worker-controller-risk": worker } },
+      memory: createInitialColonyMemory("W1N1", 2, 50),
+      constants,
+      log: vi.fn(),
+      cpu: { getUsed: () => 1, bucket: 10000 },
+      config: { controllerEmergencyThreshold: 10000 }
+    });
+
+    expect(worker.upgradeController).toHaveBeenCalledWith(room.controller);
+    expect(worker.build).not.toHaveBeenCalled();
+  });
 });
 
 describe("construction and tower policy", () => {

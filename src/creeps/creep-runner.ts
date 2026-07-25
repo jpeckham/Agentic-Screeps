@@ -8,10 +8,15 @@ import type {
 } from "../colony/colony-snapshot.js";
 import type { ColonyCreepMemory } from "../colony/colony-state.js";
 
+export interface WorkerPriorityConfig {
+  controllerEmergencyThreshold: number;
+}
+
 export function runWorker(
   creep: AnyCreep,
   snapshot: ColonySnapshot,
-  constants: SnapshotConstants
+  constants: SnapshotConstants,
+  config: WorkerPriorityConfig = { controllerEmergencyThreshold: 4000 }
 ): void {
   const memory = ensureWorkerMemory(creep, snapshot.roomName);
   updateMode(creep, memory, constants);
@@ -21,7 +26,7 @@ export function runWorker(
     return;
   }
 
-  performWork(creep, snapshot, constants, memory);
+  performWork(creep, snapshot, constants, memory, config);
 }
 
 function ensureWorkerMemory(creep: AnyCreep, roomName: string): ColonyCreepMemory {
@@ -73,7 +78,8 @@ function performWork(
   creep: AnyCreep,
   snapshot: ColonySnapshot,
   constants: SnapshotConstants,
-  memory: ColonyCreepMemory
+  memory: ColonyCreepMemory,
+  config: WorkerPriorityConfig
 ): void {
   const refillTarget = findRefillTarget(snapshot, constants);
   if (refillTarget && creep.transfer && hasLivePart(creep, constants.CARRY)) {
@@ -82,16 +88,16 @@ function performWork(
     return;
   }
 
+  if (controllerNeedsPriority(snapshot, config) && snapshot.controller && creep.upgradeController && canSpendWorkEnergy(creep, constants)) {
+    memory.assignment = { type: "upgrade", ...(snapshot.controller.id ? { targetId: snapshot.controller.id } : {}) };
+    actOrMove(creep, snapshot.controller, creep.upgradeController(snapshot.controller), constants);
+    return;
+  }
+
   const criticalBuild = findBuildTarget(snapshot, constants, true);
   if (criticalBuild && creep.build && canSpendWorkEnergy(creep, constants)) {
     memory.assignment = { type: "build", ...(criticalBuild.id ? { targetId: criticalBuild.id } : {}) };
     actOrMove(creep, criticalBuild, creep.build(criticalBuild), constants);
-    return;
-  }
-
-  if (controllerNeedsPriority(snapshot) && snapshot.controller && creep.upgradeController && canSpendWorkEnergy(creep, constants)) {
-    memory.assignment = { type: "upgrade", ...(snapshot.controller.id ? { targetId: snapshot.controller.id } : {}) };
-    actOrMove(creep, snapshot.controller, creep.upgradeController(snapshot.controller), constants);
     return;
   }
 
@@ -207,8 +213,8 @@ function findBuildTarget(
     .sort((left, right) => priorities.indexOf(left.structureType ?? "") - priorities.indexOf(right.structureType ?? ""))[0];
 }
 
-function controllerNeedsPriority(snapshot: ColonySnapshot): boolean {
-  return (snapshot.controller?.ticksToDowngrade ?? 99999) < 4000;
+function controllerNeedsPriority(snapshot: ColonySnapshot, config: WorkerPriorityConfig): boolean {
+  return (snapshot.controller?.ticksToDowngrade ?? 99999) < config.controllerEmergencyThreshold;
 }
 
 function findRepairTarget(
