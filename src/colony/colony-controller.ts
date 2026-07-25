@@ -157,7 +157,7 @@ function runTowers(
       runTower({
         tower: tower as TowerLike,
         hostiles: snapshot.hostiles,
-        injuredFriendlies: [],
+        injuredFriendlies: snapshot.injuredFriendlies,
         repairTargets,
         constants,
         reserve: config.towerEnergyReserve

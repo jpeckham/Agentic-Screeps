@@ -28,6 +28,7 @@ export interface ColonySnapshot {
   sources: AnySource[];
   constructionSites: AnyConstructionSite[];
   damagedStructures: AnyStructure[];
+  injuredFriendlies: AnyCreep[];
   hostiles: unknown[];
   energyAvailable: number;
   energyCapacityAvailable: number;
@@ -92,6 +93,8 @@ export type AnyCreep = {
   name: string;
   ticksToLive?: number;
   body?: Array<{ type: string; hits?: number }>;
+  hits?: number;
+  hitsMax?: number;
   memory?: Record<string, unknown>;
   pos?: AnyPosition;
   store?: {
@@ -131,6 +134,11 @@ export function createColonySnapshot(room: AnyRoom, constants: SnapshotConstants
     typeof structure.hitsMax === "number" &&
     structure.hits < structure.hitsMax
   );
+  const injuredFriendlies = creeps.filter((creep) =>
+    typeof creep.hits === "number" &&
+    typeof creep.hitsMax === "number" &&
+    creep.hits < creep.hitsMax
+  );
 
   return {
     room,
@@ -146,6 +154,7 @@ export function createColonySnapshot(room: AnyRoom, constants: SnapshotConstants
     sources,
     constructionSites,
     damagedStructures,
+    injuredFriendlies,
     hostiles,
     energyAvailable: room.energyAvailable ?? 0,
     energyCapacityAvailable: room.energyCapacityAvailable ?? room.energyAvailable ?? 0

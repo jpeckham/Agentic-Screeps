@@ -122,6 +122,15 @@ function createEnergyStructure(
   };
 }
 
+function createTower(energy = 900) {
+  return {
+    ...createEnergyStructure(constants.STRUCTURE_TOWER, energy, 1000),
+    attack: vi.fn(() => constants.OK),
+    heal: vi.fn(() => constants.OK),
+    repair: vi.fn(() => constants.OK)
+  };
+}
+
 function createWorker(name: string, energy: number, ttl = 1500) {
   const memory: Record<string, unknown> = {};
   return {
@@ -454,6 +463,24 @@ describe("construction and tower policy", () => {
     tower.heal.mockClear();
     tower.store.getUsedCapacity.mockReturnValue(400);
     runTower({ tower, hostiles: [], injuredFriendlies: [], repairTargets: [repairTarget], constants, reserve: 500 });
+    expect(tower.repair).not.toHaveBeenCalled();
+  });
+
+  test("colony snapshot passes injured friendly creeps to towers", () => {
+    const tower = createTower();
+    const injured = { ...createWorker("worker-injured", 50), hits: 40, hitsMax: 100 };
+    const room = createRoom({ rcl: 3, structures: [createSpawn(), tower], creeps: [injured] });
+    const memory = createInitialColonyMemory("W1N1", 3, 40);
+
+    runColony({
+      game: { time: 40, rooms: { W1N1: room }, creeps: { "worker-injured": injured } },
+      memory,
+      constants,
+      log: vi.fn(),
+      cpu: { getUsed: () => 1, bucket: 10000 }
+    });
+
+    expect(tower.heal).toHaveBeenCalledWith(injured);
     expect(tower.repair).not.toHaveBeenCalled();
   });
 });
