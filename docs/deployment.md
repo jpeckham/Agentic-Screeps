@@ -1,7 +1,7 @@
 # Production Deployment
 
-1. Merge through a pull request after all required checks pass.
-2. Let `CI/CD` run on `main`, or dispatch it manually.
+1. Push a commit after local checks pass.
+2. Let `CI/CD` run for the push, or dispatch it manually.
 3. Confirm the summary shows the release id and Screeps branch `agentic`.
 4. Confirm Screeps branch `agentic` contains the uploaded code.
 5. If production breaks, fix forward through a new commit to `main`.

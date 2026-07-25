@@ -27,7 +27,7 @@ export async function screepsRequest(config, path, init = {}) {
     );
   }
   const text = await response.text();
-  const body = text ? JSON.parse(text) : {};
+  const body = parseJson(text, response.status);
   if (!response.ok) {
     throw new Error(classify(response.status));
   }
@@ -37,6 +37,14 @@ export async function screepsRequest(config, path, init = {}) {
 function sanitizeNetworkError(error) {
   if (error instanceof Error) return error.message.replace(/[A-Za-z0-9_-]{16,}/g, "[redacted]");
   return String(error).replace(/[A-Za-z0-9_-]{16,}/g, "[redacted]");
+}
+
+function parseJson(text, status) {
+  try {
+    return text ? JSON.parse(text) : {};
+  } catch {
+    throw new Error(`Malformed Screeps API response (${status}): expected JSON.`);
+  }
 }
 
 export async function uploadModules(config, branch, modules) {

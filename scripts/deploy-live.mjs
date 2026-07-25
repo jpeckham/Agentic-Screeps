@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
-import { getActiveBranch, readConfig, readModules, uploadModules } from "./screeps-api.mjs";
+import { readConfig, readModules, uploadModules } from "./screeps-api.mjs";
 
 const manifestPath = resolve(process.argv[2] ?? "dist/release-manifest.json");
 const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
@@ -13,7 +13,6 @@ for (const module of manifest.modules) {
   modules[module.name] = await readFile(join(distDir, module.file), "utf8");
 }
 
-const active = await getActiveBranch(config);
 await uploadModules(config, branch, modules);
 
 const uploaded = await readModules(config, branch);
@@ -36,5 +35,4 @@ for (const [name, contents] of Object.entries(modules)) {
 
 console.log(`✓ Uploaded ${expectedNames.length} modules to ${branch}`);
 console.log(`✓ Remote live branch verified`);
-console.log(`Active branch before upload: ${active}`);
 console.log(`Deployed branch: ${branch}`);

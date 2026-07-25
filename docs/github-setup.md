@@ -22,4 +22,4 @@ Workflow permissions should default to read-only. The workflows in this repo req
 
 Create a narrowly scoped Screeps auth token. Store it only as an environment secret named `SCREEPS_TOKEN`; never place it in `.env`, command history, artifact files, branch names, URLs, or logs. Enable secret scanning/push protection if available for the repository.
 
-CI/CD uses concurrency group `ci-cd-${{ github.ref }}`. Pull request runs are superseded by newer commits, while `main` deploys run serially.
+CI/CD uses concurrency group `ci-cd-${{ github.ref }}`. Pull request runs are superseded by newer commits, while push deploys run serially per ref.
