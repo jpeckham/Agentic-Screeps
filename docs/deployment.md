@@ -4,6 +4,7 @@
 2. Let `Auto Deploy` run on `main`, or dispatch it manually.
 3. Confirm the summary shows the release id and Screeps branch `agentic`.
 4. Confirm Screeps branch `agentic` contains the uploaded code.
+5. If production breaks, fix forward through a new commit to `main`.
 
 The deploy job builds once through `npm run verify`, uploads the immutable artifact for inspection, then uploads that verified output to Screeps branch `agentic`.
 

@@ -15,4 +15,4 @@ Use expand-and-contract:
 
 1. Add new fields and deploy code that understands both shapes.
 2. Migrate incrementally and observe runtime health.
-3. Remove obsolete fields only in a later release after rollback no longer needs them.
+3. Remove obsolete fields only in a later release after the new shape has been stable in production.

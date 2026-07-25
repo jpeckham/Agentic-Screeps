@@ -8,7 +8,7 @@ Do not configure required reviewers on `screeps-production` if you want true aut
 
 Environment variables:
 
-- `SCREEPS_HOST`: usually `https://screeps.com`.
+- `SCREEPS_HOST`: optional. Leave unset for the official MMO; scripts default to `https://screeps.com`.
 - `SCREEPS_SHARD`: optional shard label for operator context.
 
 Branch protection for `main`:
@@ -21,7 +21,5 @@ Branch protection for `main`:
 Workflow permissions should default to read-only. The workflows in this repo request only `contents: read`, plus `actions: read` where production deploy downloads an existing artifact.
 
 Create a narrowly scoped Screeps auth token. Store it only as an environment secret named `SCREEPS_TOKEN`; never place it in `.env`, command history, artifact files, branch names, URLs, or logs. Enable secret scanning/push protection if available for the repository.
-
-Production and rollback share the same concurrency group, preventing overlapping activations.
 
 Auto deploy uses concurrency group `screeps-agentic-live`, so pushes to `main` deploy serially.

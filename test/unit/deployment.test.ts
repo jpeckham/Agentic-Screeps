@@ -11,8 +11,7 @@ import {
 import {
   activateVerifiedRelease,
   deployCandidate,
-  deployLive,
-  rollbackToBranch
+  deployLive
 } from "../../src/deploy/workflows.js";
 
 const jsonResponse = (status: number, body: unknown): Response =>
@@ -186,17 +185,4 @@ describe("deployment workflows", () => {
     expect(client.activateBranch).toHaveBeenCalledWith("release-abc12345");
   });
 
-  test("rollback activates only an explicit selected branch", async () => {
-    const client = {
-      listBranches: vi.fn().mockResolvedValue(["main", "release-good"]),
-      getActiveBranch: vi.fn().mockResolvedValue("release-bad"),
-      activateBranch: vi.fn().mockResolvedValue(undefined)
-    };
-
-    await expect(rollbackToBranch({ client, targetBranch: "" })).rejects.toThrow(
-      /explicit/i
-    );
-    await rollbackToBranch({ client, targetBranch: "release-good" });
-    expect(client.activateBranch).toHaveBeenCalledWith("release-good");
-  });
 });

@@ -15,8 +15,7 @@
     "verify": "npm run typecheck && npm run lint && npm run test:coverage && npm run build && node scripts/verify-release.mjs dist/release-manifest.json",
     "deploy:candidate": "node scripts/deploy-screeps.mjs",
     "deploy:live": "node scripts/deploy-live.mjs",
-    "deploy:production": "node scripts/activate-branch.mjs",
-    "rollback:production": "node scripts/rollback-screeps.mjs"
+    "deploy:production": "node scripts/activate-branch.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^9.31.0",

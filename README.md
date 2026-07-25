@@ -16,7 +16,7 @@ The production path is:
 6. The `Auto Deploy` workflow runs `npm run verify`.
 7. The workflow uploads the immutable `dist/` artifact for inspection.
 8. The workflow uploads the verified artifact to Screeps branch `agentic`.
-9. Roll back only through the explicit rollback workflow and an explicit target branch.
+9. If production breaks, fix forward through a new commit to `main`.
 
 ## One-Time Setup
 
@@ -29,7 +29,7 @@ npm ci
 Configure GitHub:
 
 1. Create a `screeps-production` environment.
-2. Add the environment secrets and variables from [Secrets, Variables, And Workflow Inputs](#secrets-variables-and-workflow-inputs).
+2. Add the `SCREEPS_TOKEN` environment secret from [Secrets, Variables, And Workflow Inputs](#secrets-variables-and-workflow-inputs).
 3. Optionally enable secret scanning and push protection.
 4. Protect `main` and require the pull request verification check.
 5. Do not require manual reviewers on `screeps-production` if you want true automatic deploy after merge.
@@ -58,11 +58,11 @@ Required environment secret:
 | --- | --- | --- | --- |
 | `SCREEPS_TOKEN` | GitHub Environment secret | `screeps-production` | A Screeps auth token. Treat it like a password. It should be narrowly scoped if Screeps supports scoping for your account/API setup. |
 
-Recommended environment variables:
+Optional environment variables:
 
 | Name | Type | Where | Value |
 | --- | --- | --- | --- |
-| `SCREEPS_HOST` | GitHub Environment variable | `screeps-production` | Screeps API origin URL. For the official MMO, use `https://screeps.com`. |
+| `SCREEPS_HOST` | GitHub Environment variable | `screeps-production` | Optional. Leave unset for the official MMO; scripts default to `https://screeps.com`. Set only for private servers or PTR-style hosts. |
 | `SCREEPS_SHARD` | GitHub Environment variable | `screeps-production` | Optional shard label, such as `shard3`. This is currently carried for operator context and future shard-aware behavior. |
 
 Workflow inputs are entered when you click **Run workflow**. They are not stored secrets.
@@ -74,8 +74,6 @@ Workflow inputs are entered when you click **Run workflow**. They are not stored
 | `Production Deploy` | `artifact_name` | String | The artifact name from the auto deploy run, such as `screeps-release-6e43144a` or `screeps-release-<full-github-sha>`. |
 | `Production Deploy` | `target_branch` | String | The inactive Screeps branch to upload/verify/activate, usually `release-<short-sha>`. |
 | `Production Deploy` | `confirmation` | String | Must be exactly `DEPLOY`. |
-| `Production Rollback` | `target_branch` | String | The explicit known-good Screeps branch to activate. Never leave this to guesswork. |
-| `Production Rollback` | `confirmation` | String | Must be exactly `ROLLBACK`. |
 
 Local-only environment variables used by scripts:
 
@@ -83,10 +81,9 @@ Local-only environment variables used by scripts:
 | --- | --- | --- |
 | `SCREEPS_TOKEN` | Secret environment variable | Screeps auth token. Prefer GitHub secrets for real deployments. |
 | `SCREEPS_HOST` | Environment variable | Optional. Defaults to `https://screeps.com`. |
-| `SCREEPS_BRANCH` | Environment variable | Target Screeps branch for candidate upload, activation, or rollback. |
+| `SCREEPS_BRANCH` | Environment variable | Target Screeps branch for candidate upload or activation. |
 | `SCREEPS_SHARD` | Environment variable | Optional shard label. |
 | `CONFIRM_DEPLOY` | Environment variable | Must be exactly `DEPLOY` for production activation. |
-| `CONFIRM_ROLLBACK` | Environment variable | Must be exactly `ROLLBACK` for rollback. |
 
 For local experiments, copy `.env.example` to a local `.env` file only if your shell tooling loads it. `.env` is ignored by Git. Do not commit `.env`, and do not use local commands for real production deployment.
 
@@ -180,23 +177,19 @@ In GitHub:
 8. Approve the `screeps-production` environment gate.
 9. Read the workflow summary and confirm the previous active branch and activated branch.
 
-The manual production deploy workflow does not rebuild. It downloads the existing artifact, verifies hashes, uploads the exact modules to the target branch, verifies the remote candidate, records rollback metadata, and then activates the branch.
+The manual production deploy workflow does not rebuild. It downloads the existing artifact, verifies hashes, uploads the exact modules to the target branch, verifies the remote candidate, and then activates the branch.
 
-## Rollback
+## Fix Forward
 
-Rollback is manual only and never guesses a target.
+There is no production rollback workflow. If live Screeps code is bad, make the smallest safe fix, verify locally, merge to `main`, and let Auto Deploy update `agentic`.
 
-In GitHub:
+For urgent fixes:
 
-1. Open **Actions**.
-2. Select **Production Rollback**.
-3. Choose **Run workflow**.
-4. Enter the explicit known-good target branch.
-5. Enter confirmation exactly as `ROLLBACK`.
-6. Approve the `screeps-production` environment gate.
-7. Confirm the summary shows the intended rollback branch activated.
-
-Before rollback, check whether Memory schema changes are compatible with the target release. If they are not compatible, deploy a forward fix instead.
+1. Create a branch from current `main`.
+2. Patch the issue.
+3. Run `npm run verify`.
+4. Open and merge a pull request, or push directly to `main` if you intentionally bypass PR review.
+5. Watch **Auto Deploy** finish successfully.
 
 ## Local Deployment Commands
 
@@ -220,18 +213,11 @@ Activate a branch:
 SCREEPS_TOKEN=... SCREEPS_BRANCH=release-abc12345 CONFIRM_DEPLOY=DEPLOY npm run deploy:production
 ```
 
-Rollback to an explicit branch:
-
-```bash
-SCREEPS_TOKEN=... SCREEPS_BRANCH=release-previous CONFIRM_ROLLBACK=ROLLBACK npm run rollback:production
-```
-
 Prefer the GitHub workflow for real deployment so CI verification, artifact immutability, and summaries are preserved.
 
 ## More Documentation
 
 - [CI/CD policy](docs/cicd.md)
 - [Deployment](docs/deployment.md)
-- [Rollback](docs/rollback.md)
 - [GitHub setup](docs/github-setup.md)
 - [Memory migrations](docs/memory-migrations.md)

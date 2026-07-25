@@ -47,7 +47,6 @@ jobs:
       - name: Deploy to Screeps agentic branch
         env:
           SCREEPS_TOKEN: ${{ secrets.SCREEPS_TOKEN }}
-          SCREEPS_HOST: ${{ vars.SCREEPS_HOST }}
           SCREEPS_BRANCH: agentic
           SCREEPS_SHARD: ${{ vars.SCREEPS_SHARD }}
         run: npm run deploy:live

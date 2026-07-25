@@ -1,17 +1,19 @@
 export function readConfig() {
   const token = process.env.SCREEPS_TOKEN;
   if (!token) throw new Error("SCREEPS_TOKEN is required.");
+  const host = process.env.SCREEPS_HOST?.trim() || "https://screeps.com";
   return {
     token,
-    host: (process.env.SCREEPS_HOST ?? "https://screeps.com").replace(/\/$/, ""),
+    host: host.replace(/\/$/, ""),
     shard: process.env.SCREEPS_SHARD
   };
 }
 
 export async function screepsRequest(config, path, init = {}) {
+  const url = `${config.host}${path}`;
   let response;
   try {
-    response = await fetch(`${config.host}${path}`, {
+    response = await fetch(url, {
       ...init,
       headers: {
         "content-type": "application/json",
@@ -19,8 +21,10 @@ export async function screepsRequest(config, path, init = {}) {
         ...init.headers
       }
     });
-  } catch {
-    throw new Error("Screeps network failure.");
+  } catch (error) {
+    throw new Error(
+      `Screeps network failure while requesting ${url}: ${sanitizeNetworkError(error)}`
+    );
   }
   const text = await response.text();
   const body = text ? JSON.parse(text) : {};
@@ -28,6 +32,11 @@ export async function screepsRequest(config, path, init = {}) {
     throw new Error(classify(response.status));
   }
   return body;
+}
+
+function sanitizeNetworkError(error) {
+  if (error instanceof Error) return error.message.replace(/[A-Za-z0-9_-]{16,}/g, "[redacted]");
+  return String(error).replace(/[A-Za-z0-9_-]{16,}/g, "[redacted]");
 }
 
 export async function uploadModules(config, branch, modules) {
