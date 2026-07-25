@@ -1,4 +1,5 @@
 import { migrateMemory } from "./memory/migrations.js";
+import { cleanupDeadCreepMemory } from "./memory/creep-cleanup.js";
 import {
   beginTick,
   createInitialReleaseState,
@@ -10,6 +11,9 @@ import {
 import { BUILD_INFO } from "./runtime/build-info.js";
 import { runSurvivalLoop as runDefaultSurvivalLoop } from "./survival/survival-loop.js";
 import { createDefaultScreepsSurvivalHooks } from "./survival/screeps-adapter.js";
+import { runOwnedColonies } from "./colony/colony-controller.js";
+import { createAiConsole } from "./colony/console-api.js";
+import type { RootMemory } from "./memory/schema.js";
 
 export interface LoopDependencies {
   memory: Partial<RootRuntimeMemory>;
@@ -59,7 +63,40 @@ export function createLoop(dependencies: LoopDependencies): () => void {
 }
 
 function runNormalEmpireLoop(): void {
-  migrateMemory(Memory as unknown as Record<string, unknown>);
+  const rootMemory = Memory as unknown as RootMemory;
+  migrateMemory(rootMemory as unknown as Record<string, unknown>);
+  if (rootMemory.data["lastReleaseLogged"] !== BUILD_INFO.releaseId) {
+    console.log(`[release ${BUILD_INFO.shortGitSha}] activated`);
+    rootMemory.data["lastReleaseLogged"] = BUILD_INFO.releaseId;
+  }
+  cleanupDeadCreepMemory(rootMemory, Game.creeps as unknown as Record<string, unknown>);
+  (globalThis as unknown as { ai: unknown }).ai = createAiConsole(rootMemory);
+  runOwnedColonies({
+    game: Game,
+    memory: rootMemory,
+    constants: {
+      WORK,
+      CARRY,
+      MOVE,
+      FIND_MY_STRUCTURES,
+      FIND_STRUCTURES,
+      FIND_MY_CREEPS,
+      FIND_SOURCES,
+      FIND_CONSTRUCTION_SITES,
+      FIND_HOSTILE_CREEPS,
+      STRUCTURE_SPAWN,
+      STRUCTURE_EXTENSION,
+      STRUCTURE_TOWER,
+      STRUCTURE_CONTAINER,
+      STRUCTURE_STORAGE,
+      STRUCTURE_ROAD,
+      RESOURCE_ENERGY,
+      OK,
+      ERR_NOT_IN_RANGE
+    },
+    log: (message: string) => console.log(message),
+    cpu: Game.cpu
+  });
 }
 
 export function loop(): void {

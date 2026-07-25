@@ -3,6 +3,10 @@ import { createRootMemory, registerMigration, runMigrations } from "./migration-
 export const migrations = [
   registerMigration(1, (memory) => {
     memory.data["initializedAt"] ??= 0;
+  }),
+  registerMigration(2, (memory) => {
+    memory.colonies ??= {};
+    memory.config ??= { visualsEnabled: true };
   })
 ];
 

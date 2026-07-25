@@ -1,4 +1,5 @@
 import type { ReleaseState } from "../runtime/release-state.js";
+import type { ColonyMemory } from "../colony/colony-state.js";
 
 export interface MigrationMemory {
   applied: number[];
@@ -14,4 +15,9 @@ export interface RootMemory {
   runtime?: ReleaseState;
   migration: MigrationMemory;
   data: Record<string, unknown>;
+  colonies?: Record<string, ColonyMemory>;
+  config?: {
+    visualsEnabled?: boolean;
+  };
+  creeps?: Record<string, Record<string, unknown>>;
 }
