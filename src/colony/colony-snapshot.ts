@@ -72,6 +72,7 @@ export type AnyConstructionSite = {
   progress?: number;
   progressTotal?: number;
   pos?: AnyPosition;
+  remove?(): number;
 };
 
 export type AnyStructure = {

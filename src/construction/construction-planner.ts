@@ -8,6 +8,25 @@ export interface ConstructionPlan {
   y: number;
 }
 
+export function removeSourceBlockingConstruction(
+  snapshot: ColonySnapshot,
+  constants: SnapshotConstants
+): number {
+  let removed = 0;
+  for (const site of snapshot.constructionSites) {
+    if (
+      site.structureType !== constants.STRUCTURE_CONTAINER &&
+      site.pos &&
+      site.remove &&
+      isSourceAccessTile(snapshot, site.pos.x, site.pos.y)
+    ) {
+      const result = site.remove();
+      if (result === 0) removed += 1;
+    }
+  }
+  return removed;
+}
+
 export function planConstruction(
   snapshot: ColonySnapshot,
   memory: ColonyMemory,

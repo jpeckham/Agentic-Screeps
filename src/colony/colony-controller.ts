@@ -11,7 +11,7 @@ import {
 } from "./colony-state.js";
 import { planWorkforce } from "../workforce/workforce-planner.js";
 import { runWorker } from "../creeps/creep-runner.js";
-import { planConstruction } from "../construction/construction-planner.js";
+import { planConstruction, removeSourceBlockingConstruction } from "../construction/construction-planner.js";
 import { runTower } from "../structures/tower-controller.js";
 import type { TowerLike } from "../structures/tower-controller.js";
 import { drawRoomStatusVisual } from "../visualization/room-status-visual.js";
@@ -125,19 +125,25 @@ export function runColony(options: ColonyRunOptions): void {
   }
 
   if (!memory.emergency && (options.cpu.bucket ?? 10000) >= config.lowCpuBucket) {
-    const construction = planConstruction(
-      snapshot,
-      memory,
-      options.constants,
-      options.game.time,
-      config.planningCadence
-    );
-    if (construction && typeof room["createConstructionSite" as keyof AnyRoom] === "function") {
-      const result = (room as AnyRoom & { createConstructionSite(x: number, y: number, type: string): number })
-        .createConstructionSite(construction.x, construction.y, construction.structureType);
-      if (result === options.constants.OK) {
-        memory.lastConstructionPlan = { tick: options.game.time, rcl: snapshot.rcl, ...construction };
-        logConstructionPlanUpdated(snapshot, construction.structureType, options.constants, options.log);
+    const removedBlockingSites = removeSourceBlockingConstruction(snapshot, options.constants);
+    if (removedBlockingSites > 0) {
+      memory.forceReplan = true;
+      options.log(`[colony ${memory.roomName}] removed ${removedBlockingSites} source-blocking construction site(s)`);
+    } else {
+      const construction = planConstruction(
+        snapshot,
+        memory,
+        options.constants,
+        options.game.time,
+        config.planningCadence
+      );
+      if (construction && typeof room["createConstructionSite" as keyof AnyRoom] === "function") {
+        const result = (room as AnyRoom & { createConstructionSite(x: number, y: number, type: string): number })
+          .createConstructionSite(construction.x, construction.y, construction.structureType);
+        if (result === options.constants.OK) {
+          memory.lastConstructionPlan = { tick: options.game.time, rcl: snapshot.rcl, ...construction };
+          logConstructionPlanUpdated(snapshot, construction.structureType, options.constants, options.log);
+        }
       }
     }
   }

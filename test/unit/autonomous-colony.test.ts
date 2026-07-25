@@ -878,6 +878,36 @@ describe("construction and tower policy", () => {
     expect(Math.max(Math.abs((plan?.x ?? 0) - source.pos.x), Math.abs((plan?.y ?? 0) - source.pos.y))).toBeGreaterThan(1);
   });
 
+  test("removes existing non-container construction from source access tiles", () => {
+    const badSite = {
+      id: "bad-extension-site",
+      structureType: constants.STRUCTURE_EXTENSION,
+      pos: createPos(22, 20),
+      remove: vi.fn(() => constants.OK)
+    };
+    const worker = createWorker("worker-builder", 0);
+    const room = createRoom({
+      rcl: 2,
+      structures: [createSpawn()],
+      creeps: [worker],
+      sources: [{ id: "source-a", pos: createPos(23, 20) }],
+      constructionSites: [badSite]
+    });
+    const memory = createInitialColonyMemory("W1N1", 2, 1);
+
+    runColony({
+      game: { time: 1, rooms: { W1N1: room }, creeps: { "worker-builder": worker } },
+      memory,
+      constants,
+      log: vi.fn(),
+      cpu: { getUsed: () => 1, bucket: 10000 },
+      config: { planningCadence: 100 }
+    });
+
+    expect(badSite.remove).toHaveBeenCalled();
+    expect(memory.forceReplan).toBe(true);
+  });
+
   test("plans containers and RCL4 storage after critical extension and tower demand", () => {
     const extensions = Array.from({ length: 10 }, (_, index) =>
       createEnergyStructure(constants.STRUCTURE_EXTENSION, 0, 50 + index)
