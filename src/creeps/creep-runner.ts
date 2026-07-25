@@ -164,7 +164,7 @@ function chooseSource(
   const adjacent = snapshot.sources.find((source) => isAdjacent(creep.pos, source.pos));
   if (adjacent) return adjacent;
 
-  const nearby = nearestSourceWithin(creep, snapshot.sources, 3);
+  const nearby = nearestSourceWithin(creep, snapshot.sources, 3, snapshot);
   if (nearby) return nearby;
 
   const assignedCounts = sourceAssignmentCounts(snapshot);
@@ -356,10 +356,31 @@ function isAdjacent(left: { x: number; y: number } | undefined, right: { x: numb
   return inRange(left, right, 1);
 }
 
-function nearestSourceWithin(creep: AnyCreep, sources: AnySource[], range: number): AnySource | undefined {
+function nearestSourceWithin(
+  creep: AnyCreep,
+  sources: AnySource[],
+  range: number,
+  snapshot: ColonySnapshot
+): AnySource | undefined {
   return sources
-    .filter((source) => inRange(creep.pos, source.pos, range))
+    .filter((source) => inRange(creep.pos, source.pos, range) && sourceHasOpenAccess(creep, source, snapshot))
     .sort((left, right) => rangeBetween(creep.pos, left.pos) - rangeBetween(creep.pos, right.pos))[0];
+}
+
+function sourceHasOpenAccess(creep: AnyCreep, source: AnySource, snapshot: ColonySnapshot): boolean {
+  if (!source.pos) return false;
+  const occupied = new Set<string>();
+  for (const other of [
+    ...snapshot.creeps,
+    ...snapshot.spawns,
+    ...snapshot.energyStructures,
+    ...snapshot.constructionSites
+  ]) {
+    if (other !== creep && other.pos) occupied.add(positionKey(other.pos.x, other.pos.y));
+  }
+  return adjacentPositions(source.pos.x, source.pos.y).some(([x, y]) =>
+    !isWall(snapshot, x, y) && !occupied.has(positionKey(x, y))
+  );
 }
 
 function rangeBetween(left: { x: number; y: number } | undefined, right: { x: number; y: number } | undefined): number {

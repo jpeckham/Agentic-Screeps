@@ -538,6 +538,33 @@ describe("colony execution", () => {
     expect(worker.harvest).toHaveBeenCalledWith(localSource);
   });
 
+  test("uses a distant source when nearby source access is saturated", () => {
+    const worker = createWorker("worker-overflow-source", 0);
+    worker.pos = createPos(3, 17);
+    const firstHarvester = createWorker("worker-first-harvester", 0);
+    firstHarvester.pos = createPos(4, 18);
+    firstHarvester.memory.assignment = { type: "harvest", sourceId: "source-local" };
+    const secondHarvester = createWorker("worker-second-harvester", 0);
+    secondHarvester.pos = createPos(5, 18);
+    secondHarvester.memory.assignment = { type: "harvest", sourceId: "source-local" };
+    const thirdHarvester = createWorker("worker-third-harvester", 0);
+    thirdHarvester.pos = createPos(6, 18);
+    thirdHarvester.memory.assignment = { type: "harvest", sourceId: "source-local" };
+    const localSource = { id: "source-local", pos: createPos(5, 19) };
+    const distantSource = { id: "source-distant", pos: createPos(19, 7) };
+    const room = createRoom({
+      structures: [createSpawn()],
+      creeps: [worker, firstHarvester, secondHarvester, thirdHarvester],
+      sources: [localSource, distantSource],
+      terrainWalls: ["4,19", "4,20", "5,19", "5,20", "6,19", "6,20"]
+    });
+
+    runWorker(worker, createColonySnapshot(room, constants), constants);
+
+    expect(worker.memory.assignment).toEqual(expect.objectContaining({ type: "harvest", sourceId: "source-distant" }));
+    expect(worker.harvest).toHaveBeenCalledWith(distantSource);
+  });
+
   test("moves to an open source access tile when nearby harvest spots are occupied", () => {
     const worker = createWorker("worker-needs-access", 0);
     worker.pos = createPos(3, 17);
