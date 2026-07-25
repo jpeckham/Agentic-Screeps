@@ -13,11 +13,12 @@ import { createLoop } from "../../src/main.js";
 describe("runtime safety", () => {
   test("normal loop records healthy ticks", () => {
     const memory = { runtime: createInitialReleaseState("release-a", 100) };
+    const runSurvivalLoop = vi.fn();
     const loop = createLoop({
       memory,
       getTick: () => 101,
       runNormalEmpireLoop: vi.fn(),
-      runSurvivalLoop: vi.fn(),
+      runSurvivalLoop,
       log: vi.fn()
     });
 
@@ -26,6 +27,7 @@ describe("runtime safety", () => {
     expect(memory.runtime.lastHealthyTick).toBe(101);
     expect(memory.runtime.healthyTicks).toBe(1);
     expect(memory.runtime.consecutiveTopLevelFailures).toBe(0);
+    expect(runSurvivalLoop).toHaveBeenCalledOnce();
   });
 
   test("top-level failure invokes survival loop and repeated failures enable degraded mode", () => {
