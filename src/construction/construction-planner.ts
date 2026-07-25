@@ -111,7 +111,9 @@ function firstOpenNear(
 function isBuildable(snapshot: ColonySnapshot, x: number, y: number): boolean {
   if (x < 2 || x > 47 || y < 2 || y > 47) return false;
   if (isWall(snapshot, x, y)) return false;
-  return !occupiedPositions(snapshot).has(positionKey(x, y));
+  const occupied = occupiedPositions(snapshot);
+  if (occupied.has(positionKey(x, y))) return false;
+  return preservesCriticalAccess(snapshot, x, y, occupied);
 }
 
 function isWall(snapshot: ColonySnapshot, x: number, y: number): boolean {
@@ -134,6 +136,45 @@ function occupiedPositions(snapshot: ColonySnapshot): Set<string> {
     occupied.add(positionKey(snapshot.controller.pos.x, snapshot.controller.pos.y));
   }
   return occupied;
+}
+
+function preservesCriticalAccess(
+  snapshot: ColonySnapshot,
+  proposedX: number,
+  proposedY: number,
+  occupied: Set<string>
+): boolean {
+  const proposedKey = positionKey(proposedX, proposedY);
+  const criticalPositions = [
+    ...snapshot.sources.map((source) => source.pos),
+    ...snapshot.spawns.map((spawn) => spawn.pos),
+    snapshot.controller?.pos
+  ].filter((pos): pos is { x: number; y: number } => Boolean(pos));
+
+  return criticalPositions.every((pos) =>
+    adjacentPositions(pos.x, pos.y).some(([x, y]) =>
+      x >= 1 &&
+      x <= 48 &&
+      y >= 1 &&
+      y <= 48 &&
+      !isWall(snapshot, x, y) &&
+      !occupied.has(positionKey(x, y)) &&
+      positionKey(x, y) !== proposedKey
+    )
+  );
+}
+
+function adjacentPositions(x: number, y: number): Array<[number, number]> {
+  return [
+    [x - 1, y - 1],
+    [x, y - 1],
+    [x + 1, y - 1],
+    [x - 1, y],
+    [x + 1, y],
+    [x - 1, y + 1],
+    [x, y + 1],
+    [x + 1, y + 1]
+  ];
 }
 
 function positionKey(x: number, y: number): string {

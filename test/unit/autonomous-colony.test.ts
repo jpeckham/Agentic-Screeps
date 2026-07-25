@@ -718,6 +718,24 @@ describe("construction and tower policy", () => {
     expect(wallPlan).not.toEqual(expect.objectContaining({ x: 22, y: 20 }));
   });
 
+  test("does not consume the last open source access tile", () => {
+    const sourceRoom = createRoom({
+      rcl: 2,
+      structures: [createSpawn()],
+      sources: [{ id: "source-a", pos: createPos(23, 20) }],
+      terrainWalls: ["22,19", "23,19", "24,19", "24,20", "22,21", "23,21", "24,21"]
+    });
+    const plan = planConstruction(
+      createColonySnapshot(sourceRoom, constants),
+      createInitialColonyMemory("W1N1", 2, 1),
+      constants,
+      1
+    );
+
+    expect(plan).toEqual(expect.objectContaining({ structureType: "extension" }));
+    expect(plan).not.toEqual(expect.objectContaining({ x: 22, y: 20 }));
+  });
+
   test("plans containers and RCL4 storage after critical extension and tower demand", () => {
     const extensions = Array.from({ length: 10 }, (_, index) =>
       createEnergyStructure(constants.STRUCTURE_EXTENSION, 0, 50 + index)
