@@ -750,6 +750,27 @@ describe("colony execution", () => {
     expect(worker.upgradeController).toHaveBeenCalledWith(room.controller);
     expect(worker.build).not.toHaveBeenCalled();
   });
+
+  test("builds in-range critical construction before long-distance controller recovery", () => {
+    const worker = createWorker("worker-near-critical-build", 50);
+    worker.pos = createPos(4, 18);
+    const spawn = createSpawn(300);
+    const buildSite = { id: "site-1", structureType: constants.STRUCTURE_EXTENSION, pos: createPos(5, 18) };
+    const room = createRoom({ structures: [spawn], creeps: [worker], constructionSites: [buildSite] });
+    room.controller.ticksToDowngrade = 9000;
+
+    runColony({
+      game: { time: 51, rooms: { W1N1: room }, creeps: { "worker-near-critical-build": worker } },
+      memory: createInitialColonyMemory("W1N1", 2, 51),
+      constants,
+      log: vi.fn(),
+      cpu: { getUsed: () => 1, bucket: 10000 },
+      config: { controllerEmergencyThreshold: 10000 }
+    });
+
+    expect(worker.build).toHaveBeenCalledWith(buildSite);
+    expect(worker.upgradeController).not.toHaveBeenCalled();
+  });
 });
 
 describe("construction and tower policy", () => {

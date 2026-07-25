@@ -107,13 +107,19 @@ function performWork(
     return;
   }
 
+  const criticalBuild = findBuildTarget(snapshot, constants, true);
+  if (criticalBuild && inRange(creep.pos, criticalBuild.pos, 3) && creep.build && canSpendWorkEnergy(creep, constants)) {
+    memory.assignment = { type: "build", ...(criticalBuild.id ? { targetId: criticalBuild.id } : {}) };
+    actOrMove(creep, criticalBuild, creep.build(criticalBuild), constants);
+    return;
+  }
+
   if (controllerNeedsPriority(snapshot, config) && snapshot.controller && creep.upgradeController && canSpendWorkEnergy(creep, constants)) {
     memory.assignment = { type: "upgrade", ...(snapshot.controller.id ? { targetId: snapshot.controller.id } : {}) };
     actOrMove(creep, snapshot.controller, creep.upgradeController(snapshot.controller), constants);
     return;
   }
 
-  const criticalBuild = findBuildTarget(snapshot, constants, true);
   if (criticalBuild && creep.build && canSpendWorkEnergy(creep, constants)) {
     memory.assignment = { type: "build", ...(criticalBuild.id ? { targetId: criticalBuild.id } : {}) };
     actOrMove(creep, criticalBuild, creep.build(criticalBuild), constants);
@@ -292,8 +298,12 @@ function hasLivePart(creep: AnyCreep, partType: string): boolean {
   return (creep.body ?? []).some((part) => part.type === partType && (part.hits ?? 1) > 0);
 }
 
+function inRange(left: { x: number; y: number } | undefined, right: { x: number; y: number } | undefined, range: number): boolean {
+  return Boolean(left && right && Math.max(Math.abs(left.x - right.x), Math.abs(left.y - right.y)) <= range);
+}
+
 function isAdjacent(left: { x: number; y: number } | undefined, right: { x: number; y: number } | undefined): boolean {
-  return Boolean(left && right && Math.max(Math.abs(left.x - right.x), Math.abs(left.y - right.y)) <= 1);
+  return inRange(left, right, 1);
 }
 
 function isSource(value: unknown): value is AnySource {
