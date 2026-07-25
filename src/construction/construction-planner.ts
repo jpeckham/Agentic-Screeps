@@ -18,7 +18,7 @@ export function removeSourceBlockingConstruction(
       site.structureType !== constants.STRUCTURE_CONTAINER &&
       site.pos &&
       site.remove &&
-      isSourceAccessTile(snapshot, site.pos.x, site.pos.y)
+      isSourceReserveTile(snapshot, site.pos.x, site.pos.y)
     ) {
       const result = site.remove();
       if (result === 0) removed += 1;
@@ -173,7 +173,7 @@ function isBuildable(snapshot: ColonySnapshot, x: number, y: number, structureTy
   if (isWall(snapshot, x, y)) return false;
   const occupied = occupiedPositions(snapshot);
   if (occupied.has(positionKey(x, y))) return false;
-  if (structureType !== "container" && isSourceAccessTile(snapshot, x, y)) return false;
+  if (structureType !== "container" && isSourceReserveTile(snapshot, x, y)) return false;
   return preservesCriticalAccess(snapshot, x, y, occupied);
 }
 
@@ -199,9 +199,9 @@ function occupiedPositions(snapshot: ColonySnapshot): Set<string> {
   return occupied;
 }
 
-function isSourceAccessTile(snapshot: ColonySnapshot, x: number, y: number): boolean {
+function isSourceReserveTile(snapshot: ColonySnapshot, x: number, y: number): boolean {
   return snapshot.sources.some((source) =>
-    source.pos && Math.max(Math.abs(source.pos.x - x), Math.abs(source.pos.y - y)) <= 1
+    source.pos && Math.max(Math.abs(source.pos.x - x), Math.abs(source.pos.y - y)) <= 2
   );
 }
 

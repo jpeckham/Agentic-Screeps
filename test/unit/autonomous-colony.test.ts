@@ -949,6 +949,28 @@ describe("construction and tower policy", () => {
     expect(Math.max(Math.abs((plan?.x ?? 0) - source.pos.x), Math.abs((plan?.y ?? 0) - source.pos.y))).toBeGreaterThan(1);
   });
 
+  test("does not place non-container construction in source approach chokes", () => {
+    const source = { id: "source-a", pos: createPos(5, 19) };
+    const spawn = createSpawn();
+    spawn.pos = createPos(3, 18);
+    const room = createRoom({
+      rcl: 2,
+      structures: [spawn],
+      sources: [source],
+      terrainWalls: ["2,16", "3,16", "4,16", "5,16", "4,19", "4,20", "5,19", "5,20", "6,19", "6,20"]
+    });
+
+    const plan = planConstruction(
+      createColonySnapshot(room, constants),
+      createInitialColonyMemory("W1N1", 2, 1),
+      constants,
+      1
+    );
+
+    expect(plan).toEqual(expect.objectContaining({ structureType: "extension" }));
+    expect(Math.max(Math.abs((plan?.x ?? 0) - source.pos.x), Math.abs((plan?.y ?? 0) - source.pos.y))).toBeGreaterThan(2);
+  });
+
   test("removes existing non-container construction from source access tiles", () => {
     const badSite = {
       id: "bad-extension-site",
@@ -962,6 +984,36 @@ describe("construction and tower policy", () => {
       structures: [createSpawn()],
       creeps: [worker],
       sources: [{ id: "source-a", pos: createPos(23, 20) }],
+      constructionSites: [badSite]
+    });
+    const memory = createInitialColonyMemory("W1N1", 2, 1);
+
+    runColony({
+      game: { time: 1, rooms: { W1N1: room }, creeps: { "worker-builder": worker } },
+      memory,
+      constants,
+      log: vi.fn(),
+      cpu: { getUsed: () => 1, bucket: 10000 },
+      config: { planningCadence: 100 }
+    });
+
+    expect(badSite.remove).toHaveBeenCalled();
+    expect(memory.forceReplan).toBe(true);
+  });
+
+  test("removes existing non-container construction from source approach chokes", () => {
+    const badSite = {
+      id: "bad-approach-site",
+      structureType: constants.STRUCTURE_EXTENSION,
+      pos: createPos(5, 17),
+      remove: vi.fn(() => constants.OK)
+    };
+    const worker = createWorker("worker-builder", 0);
+    const room = createRoom({
+      rcl: 2,
+      structures: [createSpawn()],
+      creeps: [worker],
+      sources: [{ id: "source-a", pos: createPos(5, 19) }],
       constructionSites: [badSite]
     });
     const memory = createInitialColonyMemory("W1N1", 2, 1);
