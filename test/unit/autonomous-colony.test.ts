@@ -343,6 +343,35 @@ describe("colony execution", () => {
     expect(spawn.spawnCreep).not.toHaveBeenCalled();
   });
 
+  test("ignores stale replacement markers for creeps that no longer exist", () => {
+    const first = createWorker("worker-1", 0);
+    const second = createWorker("worker-2", 0);
+    first.memory.replacing = "dead-worker-a";
+    second.memory.replacing = "dead-worker-b";
+    const spawn = createSpawn(550);
+    const room = createRoom({
+      rcl: 2,
+      structures: [spawn],
+      creeps: [first, second],
+      energyAvailable: 550,
+      energyCapacityAvailable: 550
+    });
+
+    runColony({
+      game: { time: 17, rooms: { W1N1: room }, creeps: { "worker-1": first, "worker-2": second } },
+      memory: createInitialColonyMemory("W1N1", 2, 17),
+      constants,
+      log: vi.fn(),
+      cpu: { getUsed: () => 1, bucket: 10000 }
+    });
+
+    expect(spawn.spawnCreep).toHaveBeenCalledWith(
+      expect.any(Array),
+      expect.stringMatching(/^worker-/),
+      expect.objectContaining({ memory: expect.objectContaining({ role: "worker" }) })
+    );
+  });
+
   test("withdraws from containers before harvesting sources", () => {
     const worker = createWorker("worker-1", 0);
     const container = createEnergyStructure(constants.STRUCTURE_CONTAINER, 150);

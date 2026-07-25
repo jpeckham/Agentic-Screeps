@@ -72,10 +72,11 @@ export function runColony(options: ColonyRunOptions): void {
   const expiringWorkers = snapshot.workers.filter((creep) =>
     hasWorkAndCarry(creep) && (creep.ticksToLive ?? 1500) <= config.replacementTtlThreshold
   );
+  const expiringWorkerNames = new Set(expiringWorkers.map((creep) => creep.name));
   const replacingNames = new Set(
     snapshot.workers
       .map((creep) => creep.memory?.["replacing"])
-      .filter((name): name is string => typeof name === "string")
+      .filter((name): name is string => typeof name === "string" && expiringWorkerNames.has(name))
   );
   const replacementCount = replacingNames.size;
   const replacementTarget = expiringWorkers.find((creep) => !replacingNames.has(creep.name));
