@@ -25,9 +25,9 @@ export function planConstruction(
   if (!desired) return undefined;
   if (hasStructureOrSite(snapshot, desired, constants)) return undefined;
 
-  const origin = snapshot.spawns[0]?.pos ?? snapshot.controller?.pos;
+  const origin = constructionOrigin(snapshot, desired, constants);
   if (!origin) return undefined;
-  const plan = firstOpenNear(snapshot, origin.x, origin.y, desired);
+  const plan = firstOpenNear(snapshot, origin.x, origin.y, desired, desired === constants.STRUCTURE_CONTAINER);
   if (!plan) return undefined;
   return plan;
 }
@@ -75,13 +75,53 @@ function extensionTarget(rcl: number): number {
   return 5;
 }
 
+function constructionOrigin(
+  snapshot: ColonySnapshot,
+  structureType: string,
+  constants: SnapshotConstants
+): { x: number; y: number } | undefined {
+  if (structureType === constants.STRUCTURE_CONTAINER) {
+    return sourceNeedingContainer(snapshot, constants)?.pos ?? snapshot.sources[0]?.pos;
+  }
+  return snapshot.spawns[0]?.pos ?? snapshot.controller?.pos;
+}
+
+function sourceNeedingContainer(snapshot: ColonySnapshot, constants: SnapshotConstants) {
+  return snapshot.sources.find((source) => source.pos && !hasContainerNear(snapshot, source.pos, constants));
+}
+
+function hasContainerNear(
+  snapshot: ColonySnapshot,
+  pos: { x: number; y: number },
+  constants: SnapshotConstants
+): boolean {
+  const containers = [
+    ...snapshot.energyStructures.filter((structure) => structure.structureType === constants.STRUCTURE_CONTAINER),
+    ...snapshot.constructionSites.filter((site) => site.structureType === constants.STRUCTURE_CONTAINER)
+  ];
+  return containers.some((container) =>
+    container.pos && Math.max(Math.abs(container.pos.x - pos.x), Math.abs(container.pos.y - pos.y)) <= 1
+  );
+}
+
 function firstOpenNear(
   snapshot: ColonySnapshot,
   x: number,
   y: number,
-  structureType: string
+  structureType: string,
+  adjacentOnly = false
 ): ConstructionPlan | undefined {
-  const offsets = [
+  const adjacentOffsets = [
+    [0, -1],
+    [1, 0],
+    [0, 1],
+    [-1, 0],
+    [-1, -1],
+    [1, -1],
+    [-1, 1],
+    [1, 1]
+  ] as const;
+  const nearbyOffsets = [
     [2, 0],
     [2, 1],
     [2, -1],
@@ -99,6 +139,7 @@ function firstOpenNear(
     [-3, 0],
     [0, -3]
   ] as const;
+  const offsets = adjacentOnly ? adjacentOffsets : nearbyOffsets;
 
   for (const [dx, dy] of offsets) {
     const px = x + dx;

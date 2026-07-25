@@ -761,6 +761,29 @@ describe("construction and tower policy", () => {
       .toEqual(expect.objectContaining({ structureType: "storage" }));
   });
 
+  test("places RCL3 source containers adjacent to an unserved source", () => {
+    const extensions = Array.from({ length: 10 }, (_, index) =>
+      createEnergyStructure(constants.STRUCTURE_EXTENSION, 0, 50 + index)
+    );
+    const tower = createEnergyStructure(constants.STRUCTURE_TOWER, 500, 1000);
+    const source = { id: "source-a", pos: createPos(10, 10) };
+    const room = createRoom({
+      rcl: 3,
+      structures: [createSpawn(), tower, ...extensions],
+      sources: [source]
+    });
+
+    const plan = planConstruction(
+      createColonySnapshot(room, constants),
+      createInitialColonyMemory("W1N1", 3, 1),
+      constants,
+      1
+    );
+
+    expect(plan).toEqual(expect.objectContaining({ structureType: "container" }));
+    expect(Math.max(Math.abs((plan?.x ?? 0) - source.pos.x), Math.abs((plan?.y ?? 0) - source.pos.y))).toBe(1);
+  });
+
   test("tower attacks hostiles before healing or repairs and preserves reserve", () => {
     const hostile = { id: "hostile" };
     const tower = {
