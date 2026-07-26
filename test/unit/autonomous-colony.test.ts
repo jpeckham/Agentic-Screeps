@@ -5,6 +5,7 @@ import { planWorkforce } from "../../src/workforce/workforce-planner.js";
 import { runColony, runOwnedColonies } from "../../src/colony/colony-controller.js";
 import { createColonySnapshot } from "../../src/colony/colony-snapshot.js";
 import { ColonyDefenseCoordinator, decideDefensePosture } from "../../src/colony/defense-coordinator.js";
+import { createColonyStatus, formatColonyStatusLog } from "../../src/colony/colony-status.js";
 import { createInitialColonyMemory } from "../../src/colony/colony-state.js";
 import { selectColonyStrategy } from "../../src/colony/strategy.js";
 import { runWorker } from "../../src/creeps/creep-runner.js";
@@ -2643,6 +2644,48 @@ describe("integration scenarios", () => {
 });
 
 describe("memory, console API, and observability", () => {
+  test("colony status object owns telemetry shape and log formatting", () => {
+    const harvester = createWorker("worker-1", 0);
+    const upgrader = createWorker("worker-2", 50);
+    harvester.memory.assignment = { type: "harvest", sourceId: "source-a" };
+    upgrader.memory.assignment = { type: "upgrade", targetId: "controller" };
+    const room = createRoom({
+      rcl: 2,
+      structures: [createSpawn(300)],
+      creeps: [harvester, upgrader],
+      energyAvailable: 300,
+      energyCapacityAvailable: 550,
+      hostiles: [createHostile("hostile-unarmed", [{ type: constants.MOVE }])]
+    });
+    const memory = createInitialColonyMemory("W1N1", 2, 1);
+    memory.strategy = "bootstrap";
+
+    const status = createColonyStatus({
+      snapshot: createColonySnapshot(room, constants),
+      memory,
+      desiredWorkers: 4,
+      defenseDecision: { posture: "alert", reason: "threat low" },
+      cpuUsed: 1.25
+    });
+
+    expect(status).toMatchObject({
+      roomName: "W1N1",
+      rcl: 2,
+      mode: "NORMAL",
+      energy: { available: 300, capacity: 550 },
+      workers: { actual: 2, desired: 4 },
+      strategy: "bootstrap",
+      assignments: { harvest: 1, deliver: 0, upgrade: 1, build: 0, repair: 0 },
+      defense: { posture: "alert", reason: "threat low" },
+      threat: { severity: "low", hostileCount: 1 },
+      constructionSiteCount: 0,
+      cpuUsed: 1.25
+    });
+    expect(formatColonyStatusLog(status)).toBe(
+      "[colony W1N1] status: RCL 2 NORMAL energy 300/550 workers 2/4 assignments H1 D0 U1 B0 R0 defense ALERT threat LOW hostiles 1 sites 0 cpu 1.3"
+    );
+  });
+
   test("room visual includes compact assignment counts", () => {
     const harvester = createWorker("worker-harvest", 0);
     harvester.memory.assignment = { type: "harvest", sourceId: "source-a" };
@@ -2662,13 +2705,16 @@ describe("memory, console API, and observability", () => {
     const memory = createInitialColonyMemory("W1N1", 2, 1);
     memory.strategy = "infrastructure-push";
 
-    drawRoomStatusVisual({
-      snapshot: createColonySnapshot(room, constants),
+    const snapshot = createColonySnapshot(room, constants);
+    const status = createColonyStatus({
+      snapshot,
       memory,
-      workers: 5,
       desiredWorkers: 5,
+      defenseDecision: { posture: "peace", reason: "threat none" },
       cpuUsed: 1.4
     });
+
+    drawRoomStatusVisual({ snapshot, status });
 
     expect(room.visual.text).toHaveBeenCalledWith(
       expect.stringContaining("Assignments:\nHarvest 1\nDeliver 1\nUpgrade 1\nBuild 1\nRepair 1"),
