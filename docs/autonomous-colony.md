@@ -48,6 +48,7 @@ named strategy for normal colony execution:
 Strategy changes are logged as `[colony W1N1] strategy selected: <name>` and the
 latest selected strategy is stored in colony memory as a small string. Strategy
 state is advisory and safe to recompute; no live Screeps objects are persisted.
+The active strategy is also visible in room visuals and `ai.status()`.
 
 ## Configuration
 
@@ -93,11 +94,12 @@ colony for construction replanning.
   present.
 - Towers attack hostiles before healing or repair and preserve an energy reserve.
 - Visual telemetry failures are logged and do not stop colony execution.
-- Room visuals show RCL, mode, energy, workers, assignment counts, build sites,
-  CPU, and release.
+- Room visuals show RCL, mode, energy, workers, active strategy, assignment
+  counts, build sites, CPU, and release.
 - Console status telemetry is interval-gated by `statusLogInterval` and records
   RCL, mode, energy, worker counts, assignment counts, construction site count,
   and CPU without logging every tick.
+- `ai.status(roomName?)` reports the active strategy for manual inspection.
 - Console lifecycle telemetry logs strategy transitions without logging every
   tick.
 - Deterministic integration-style tests cover Scenario A through Scenario E from
@@ -124,6 +126,7 @@ colony for construction replanning.
 - [ ] Worker harvests from a source
 - [ ] Worker returns energy to spawn/extensions
 - [ ] Colony maintains a bounded workforce
+- [ ] Active strategy is visible in room visual or `ai.status()`
 - [ ] Controller receives upgrades
 - [ ] Extension sites appear at RCL 2
 - [ ] Extensions are completed

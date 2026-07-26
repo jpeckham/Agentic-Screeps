@@ -19,6 +19,7 @@ export function drawRoomStatusVisual(options: {
     `Mode: ${options.memory.emergency ? "EMERGENCY" : "NORMAL"}`,
     `Energy: ${options.snapshot.energyAvailable} / ${options.snapshot.energyCapacityAvailable}`,
     `Workers: ${options.workers} / ${options.desiredWorkers}`,
+    `Strategy: ${options.memory.strategy ?? "unselected"}`,
     "Assignments:",
     `Harvest ${assignments.harvest}`,
     `Deliver ${assignments.deliver}`,

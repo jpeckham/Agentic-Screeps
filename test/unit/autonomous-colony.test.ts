@@ -1951,6 +1951,7 @@ describe("memory, console API, and observability", () => {
       creeps: [harvester, deliverer, upgrader, builder, repairer]
     });
     const memory = createInitialColonyMemory("W1N1", 2, 1);
+    memory.strategy = "infrastructure-push";
 
     drawRoomStatusVisual({
       snapshot: createColonySnapshot(room, constants),
@@ -1962,6 +1963,12 @@ describe("memory, console API, and observability", () => {
 
     expect(room.visual.text).toHaveBeenCalledWith(
       expect.stringContaining("Assignments:\nHarvest 1\nDeliver 1\nUpgrade 1\nBuild 1\nRepair 1"),
+      expect.any(Number),
+      expect.any(Number),
+      expect.any(Object)
+    );
+    expect(room.visual.text).toHaveBeenCalledWith(
+      expect.stringContaining("Strategy: infrastructure-push"),
       expect.any(Number),
       expect.any(Number),
       expect.any(Object)
@@ -2050,9 +2057,10 @@ describe("memory, console API, and observability", () => {
 
   test("safe console API reports status and toggles visuals without reset commands", () => {
     const memory = { colonies: { W1N1: createInitialColonyMemory("W1N1", 2, 1) }, config: { visualsEnabled: true } };
+    memory.colonies.W1N1.strategy = "balanced-early";
     const ai = createAiConsole(memory);
 
-    expect(ai.status("W1N1")).toEqual(expect.objectContaining({ roomName: "W1N1" }));
+    expect(ai.status("W1N1")).toEqual(expect.objectContaining({ roomName: "W1N1", strategy: "balanced-early" }));
     ai.setVisuals(false);
     ai.forceReplan("W1N1");
 

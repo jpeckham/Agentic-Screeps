@@ -31,6 +31,7 @@ function formatStatus(colony: ColonyMemory): unknown {
     roomName: colony.roomName,
     rcl: colony.lastKnownRcl,
     emergency: colony.emergency,
+    strategy: colony.strategy ?? "unselected",
     workforceTarget: colony.workforceTarget,
     lastPlanTick: colony.lastPlanTick
   };
