@@ -161,6 +161,7 @@ describe("worker body building", () => {
     expect(buildWorkerBody(200, 300, constants)).toEqual(["work", "carry", "move"]);
     expect(buildWorkerBody(300, 300, constants).filter((part) => part === "move").length).toBeGreaterThanOrEqual(2);
     expect(buildWorkerBody(350, 350, constants)).toEqual(["work", "carry", "move", "carry", "move"]);
+    expect(buildWorkerBody(400, 400, constants)).toEqual(["work", "carry", "move", "work", "carry", "move"]);
     expect(bodyCost(buildWorkerBody(550, 550, constants))).toBeLessThanOrEqual(550);
     expect(buildWorkerBody(550, 550, constants).filter((part) => part === "move").length).toBeGreaterThanOrEqual(2);
     expect(buildWorkerBody(100, 300, constants)).toEqual([]);
