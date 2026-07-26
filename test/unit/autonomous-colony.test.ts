@@ -204,6 +204,24 @@ describe("workforce planning", () => {
     expect(plan.desiredWorkers).toBeLessThanOrEqual(6);
     expect(plan.spawnRequest).toBeUndefined();
   });
+
+  test("counts spawning workers as reserved workforce", () => {
+    const plan = planWorkforce({
+      roomName: "W1N1",
+      rcl: 2,
+      sourceCount: 2,
+      energyAvailable: 550,
+      energyCapacityAvailable: 550,
+      workerCount: 3,
+      replacementCount: 0,
+      spawningWorkerCount: 1,
+      expiringWorkerCount: 0,
+      constructionSiteCount: 0
+    });
+
+    expect(plan.desiredWorkers).toBe(4);
+    expect(plan.spawnRequest).toBeUndefined();
+  });
 });
 
 describe("colony strategy selection", () => {
@@ -325,6 +343,45 @@ describe("colony execution", () => {
     });
 
     expect(worker.upgradeController).toHaveBeenCalledWith(room.controller);
+  });
+
+  test("refills extensions before upgrading", () => {
+    const worker = createWorker("worker-extension-refill", 50);
+    const spawn = createSpawn(300);
+    const extension = createEnergyStructure(constants.STRUCTURE_EXTENSION, 0, 50);
+    const room = createRoom({ structures: [spawn, extension], creeps: [worker], energyAvailable: 300 });
+
+    runColony({
+      game: { time: 10, rooms: { W1N1: room }, creeps: { "worker-extension-refill": worker } },
+      memory: createInitialColonyMemory("W1N1", 2, 10),
+      constants,
+      log: vi.fn(),
+      cpu: { getUsed: () => 1, bucket: 10000 }
+    });
+
+    expect(worker.transfer).toHaveBeenCalledWith(extension, "energy");
+    expect(worker.upgradeController).not.toHaveBeenCalled();
+  });
+
+  test("keeps existing colony memory after a reset-like rerun", () => {
+    const worker = createWorker("worker-reset", 50);
+    const room = createRoom({ rcl: 2, structures: [createSpawn(300)], creeps: [worker] });
+    const memory = {
+      colonies: { W1N1: createInitialColonyMemory("W1N1", 2, 1) },
+      unrelated: { keep: true }
+    };
+    memory.colonies.W1N1.workforceTarget = 4;
+
+    runOwnedColonies({
+      game: { time: 200, rooms: { W1N1: room }, creeps: { "worker-reset": worker } },
+      memory,
+      constants,
+      log: vi.fn(),
+      cpu: { getUsed: () => 1, bucket: 10000 }
+    });
+
+    expect(memory.colonies.W1N1.initializedAt).toBe(1);
+    expect(memory.unrelated).toEqual({ keep: true });
   });
 
   test("logs workforce target changes once", () => {

@@ -9,6 +9,8 @@ export interface WorkforceInput {
   energyCapacityAvailable: number;
   workerCount: number;
   replacementCount: number;
+  spawningWorkerCount?: number;
+  spawningReplacementCount?: number;
   expiringWorkerCount: number;
   constructionSiteCount: number;
   strategy?: WorkforceStrategy;
@@ -43,8 +45,9 @@ export function planWorkforce(input: WorkforceInput): WorkforcePlan {
     };
   }
 
-  const effectiveWorkers = input.workerCount + input.replacementCount;
-  if (effectiveWorkers < desiredWorkers || input.expiringWorkerCount > input.replacementCount) {
+  const activeReplacementCount = input.replacementCount + (input.spawningReplacementCount ?? 0);
+  const effectiveWorkers = input.workerCount + input.replacementCount + (input.spawningWorkerCount ?? 0);
+  if (effectiveWorkers < desiredWorkers || input.expiringWorkerCount > activeReplacementCount) {
     const body = buildWorkerBody(input.energyAvailable, input.energyCapacityAvailable, BODY_CONSTANTS);
     if (body.length > 0) {
       return { desiredWorkers, emergency: false, spawnRequest: { role: "worker", body } };

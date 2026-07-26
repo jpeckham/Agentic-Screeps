@@ -79,13 +79,21 @@ export function runColony(options: ColonyRunOptions): void {
     hasWorkAndCarry(creep) && (creep.ticksToLive ?? 1500) <= config.replacementTtlThreshold
   );
   const expiringWorkerNames = new Set(expiringWorkers.map((creep) => creep.name));
+  const spawningWorkers = spawningWorkerReservations(snapshot, options.game.creeps);
   const replacingNames = new Set(
     snapshot.workers
       .map((creep) => creep.memory?.["replacing"])
       .filter((name): name is string => typeof name === "string" && expiringWorkerNames.has(name))
   );
+  const spawningReplacingNames = new Set(
+    spawningWorkers
+      .map((creep) => creep.memory?.["replacing"])
+      .filter((name): name is string => typeof name === "string" && expiringWorkerNames.has(name))
+  );
   const replacementCount = replacingNames.size;
-  const replacementTarget = expiringWorkers.find((creep) => !replacingNames.has(creep.name));
+  const replacementTarget = expiringWorkers.find((creep) =>
+    !replacingNames.has(creep.name) && !spawningReplacingNames.has(creep.name)
+  );
   const plan = planWorkforce({
     roomName: room.name,
     rcl: snapshot.rcl,
@@ -94,6 +102,8 @@ export function runColony(options: ColonyRunOptions): void {
     energyCapacityAvailable: snapshot.energyCapacityAvailable,
     workerCount: viableWorkers.length,
     replacementCount,
+    spawningWorkerCount: spawningWorkers.length,
+    spawningReplacementCount: spawningReplacingNames.size,
     expiringWorkerCount: expiringWorkers.length,
     constructionSiteCount: snapshot.constructionSites.length,
     strategy: strategy.workforce
@@ -176,6 +186,33 @@ export function runColony(options: ColonyRunOptions): void {
 
 function firstOwnedRoomName(game: ColonyGame): string {
   return Object.values(game.rooms).find((room) => room.controller?.my)?.name ?? "";
+}
+
+function spawningWorkerReservations(
+  snapshot: ReturnType<typeof createColonySnapshot>,
+  creeps: Record<string, unknown>
+): ReturnType<typeof createColonySnapshot>["workers"] {
+  const visibleWorkerNames = new Set(snapshot.workers.map((creep) => creep.name));
+  return snapshot.spawns
+    .map((spawn) => spawningName(spawn.spawning))
+    .filter((name): name is string => typeof name === "string" && !visibleWorkerNames.has(name))
+    .map((name) => creeps[name])
+    .filter(isPendingWorker);
+}
+
+function spawningName(spawning: unknown): string | undefined {
+  return typeof spawning === "object" &&
+    spawning !== null &&
+    "name" in spawning &&
+    typeof spawning.name === "string"
+    ? spawning.name
+    : undefined;
+}
+
+function isPendingWorker(value: unknown): value is ReturnType<typeof createColonySnapshot>["workers"][number] {
+  if (typeof value !== "object" || value === null || !("name" in value)) return false;
+  const creep = value as ReturnType<typeof createColonySnapshot>["workers"][number];
+  return creep.memory?.["role"] === "worker" || creep.memory?.["role"] === "emergency-worker" || hasWorkAndCarry(creep);
 }
 
 function logLifecycle(
