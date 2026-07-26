@@ -158,6 +158,15 @@ function createWorker(name: string, energy: number, ttl = 1500) {
   };
 }
 
+function createHostile(name: string, body: Array<{ type: string; hits?: number }> = []) {
+  return {
+    id: name,
+    name,
+    body,
+    pos: createPos(10, 10)
+  };
+}
+
 describe("worker body building", () => {
   test("builds functional bootstrap and larger balanced bodies without exceeding energy", () => {
     expect(buildWorkerBody(200, 300, constants)).toEqual(["work", "carry", "move"]);
@@ -333,6 +342,123 @@ describe("colony strategy selection", () => {
     expect(log).toHaveBeenCalledWith("[colony W1N1] workforce target changed: 4 -> 5");
     expect(memory.strategy).toBe("infrastructure-push");
     expect(spawn.spawnCreep).toHaveBeenCalled();
+  });
+});
+
+describe("threat assessment", () => {
+  test("no hostiles returns severity none", () => {
+    const snapshot = createColonySnapshot(createRoom(), constants);
+
+    expect(snapshot.threatAssessment).toEqual({
+      hostileCount: 0,
+      meleeParts: 0,
+      rangedParts: 0,
+      healParts: 0,
+      workParts: 0,
+      severity: "none"
+    });
+  });
+
+  test("one unarmed hostile returns low", () => {
+    const hostile = createHostile("hostile-unarmed", [
+      { type: constants.MOVE },
+      { type: constants.CARRY }
+    ]);
+
+    const snapshot = createColonySnapshot(createRoom({ hostiles: [hostile] }), constants);
+
+    expect(snapshot.threatAssessment).toMatchObject({
+      hostileCount: 1,
+      meleeParts: 0,
+      rangedParts: 0,
+      healParts: 0,
+      workParts: 0,
+      severity: "low"
+    });
+  });
+
+  test("one hostile with ATTACK returns medium", () => {
+    const hostile = createHostile("hostile-attack", [{ type: "attack" }]);
+
+    const snapshot = createColonySnapshot(createRoom({ hostiles: [hostile] }), constants);
+
+    expect(snapshot.threatAssessment).toMatchObject({
+      hostileCount: 1,
+      meleeParts: 1,
+      severity: "medium"
+    });
+  });
+
+  test("one hostile with RANGED_ATTACK returns medium", () => {
+    const hostile = createHostile("hostile-ranged", [{ type: "ranged_attack" }]);
+
+    const snapshot = createColonySnapshot(createRoom({ hostiles: [hostile] }), constants);
+
+    expect(snapshot.threatAssessment).toMatchObject({
+      hostileCount: 1,
+      rangedParts: 1,
+      severity: "medium"
+    });
+  });
+
+  test("one hostile with WORK returns medium", () => {
+    const hostile = createHostile("hostile-work", [{ type: constants.WORK }]);
+
+    const snapshot = createColonySnapshot(createRoom({ hostiles: [hostile] }), constants);
+
+    expect(snapshot.threatAssessment).toMatchObject({
+      hostileCount: 1,
+      workParts: 1,
+      severity: "medium"
+    });
+  });
+
+  test("one hostile with HEAL returns high", () => {
+    const hostile = createHostile("hostile-heal", [{ type: "heal" }]);
+
+    const snapshot = createColonySnapshot(createRoom({ hostiles: [hostile] }), constants);
+
+    expect(snapshot.threatAssessment).toMatchObject({
+      hostileCount: 1,
+      healParts: 1,
+      severity: "high"
+    });
+  });
+
+  test("multiple armed hostiles return high", () => {
+    const hostiles = [
+      createHostile("hostile-attack", [{ type: "attack" }]),
+      createHostile("hostile-work", [{ type: constants.WORK }])
+    ];
+
+    const snapshot = createColonySnapshot(createRoom({ hostiles }), constants);
+
+    expect(snapshot.threatAssessment).toMatchObject({
+      hostileCount: 2,
+      meleeParts: 1,
+      workParts: 1,
+      severity: "high"
+    });
+  });
+
+  test("destroyed body parts are not counted", () => {
+    const hostile = createHostile("hostile-damaged", [
+      { type: "attack", hits: 0 },
+      { type: "ranged_attack", hits: 0 },
+      { type: "heal", hits: 0 },
+      { type: constants.WORK, hits: 100 }
+    ]);
+
+    const snapshot = createColonySnapshot(createRoom({ hostiles: [hostile] }), constants);
+
+    expect(snapshot.threatAssessment).toEqual({
+      hostileCount: 1,
+      meleeParts: 0,
+      rangedParts: 0,
+      healParts: 0,
+      workParts: 1,
+      severity: "medium"
+    });
   });
 });
 
@@ -2416,6 +2542,12 @@ describe("memory, console API, and observability", () => {
       expect.any(Number),
       expect.any(Object)
     );
+    expect(room.visual.text).toHaveBeenCalledWith(
+      expect.stringContaining("Threat: NONE hostiles 0"),
+      expect.any(Number),
+      expect.any(Number),
+      expect.any(Object)
+    );
   });
 
   test("logs concise colony status only at the configured interval", () => {
@@ -2466,7 +2598,7 @@ describe("memory, console API, and observability", () => {
     });
 
     expect(log).toHaveBeenCalledWith(
-      "[colony W1N1] status: RCL 2 NORMAL energy 300/550 workers 4/4 assignments H1 D0 U2 B1 R0 sites 1 cpu 0.0"
+      "[colony W1N1] status: RCL 2 NORMAL energy 300/550 workers 4/4 assignments H1 D0 U2 B1 R0 threat NONE hostiles 0 sites 1 cpu 0.0"
     );
     expect(memory.lastStatusLog).toBe(10);
 

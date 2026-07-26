@@ -34,8 +34,20 @@ export interface ColonySnapshot {
   damagedStructures: AnyStructure[];
   injuredFriendlies: AnyCreep[];
   hostiles: unknown[];
+  threatAssessment: ThreatAssessment;
   energyAvailable: number;
   energyCapacityAvailable: number;
+}
+
+export type ThreatSeverity = "none" | "low" | "medium" | "high";
+
+export interface ThreatAssessment {
+  hostileCount: number;
+  meleeParts: number;
+  rangedParts: number;
+  healParts: number;
+  workParts: number;
+  severity: ThreatSeverity;
 }
 
 export type AnyRoom = {
@@ -122,6 +134,7 @@ export function createColonySnapshot(room: AnyRoom, constants: SnapshotConstants
   const sources = room.find(constants.FIND_SOURCES).filter(isSource);
   const constructionSites = room.find(constants.FIND_CONSTRUCTION_SITES).filter(isConstructionSite);
   const hostiles = room.find(constants.FIND_HOSTILE_CREEPS);
+  const threatAssessment = assessThreats(hostiles);
   const spawns = myStructures.filter((structure) => structure.structureType === constants.STRUCTURE_SPAWN);
   const extensions = myStructures.filter((structure) => structure.structureType === constants.STRUCTURE_EXTENSION);
   const towers = myStructures.filter((structure) => structure.structureType === constants.STRUCTURE_TOWER);
@@ -170,9 +183,72 @@ export function createColonySnapshot(room: AnyRoom, constants: SnapshotConstants
     damagedStructures,
     injuredFriendlies,
     hostiles,
+    threatAssessment,
     energyAvailable: room.energyAvailable ?? 0,
     energyCapacityAvailable: room.energyCapacityAvailable ?? room.energyAvailable ?? 0
   };
+}
+
+export function assessThreats(hostiles: unknown[]): ThreatAssessment {
+  let meleeParts = 0;
+  let rangedParts = 0;
+  let healParts = 0;
+  let workParts = 0;
+  let armedHostiles = 0;
+
+  for (const hostile of hostiles) {
+    let armed = false;
+    for (const part of hostileBody(hostile)) {
+      if ((part.hits ?? 1) <= 0) continue;
+      if (part.type === "attack") {
+        meleeParts += 1;
+        armed = true;
+      } else if (part.type === "ranged_attack") {
+        rangedParts += 1;
+        armed = true;
+      } else if (part.type === "heal") {
+        healParts += 1;
+        armed = true;
+      } else if (part.type === "work") {
+        workParts += 1;
+        armed = true;
+      }
+    }
+    if (armed) armedHostiles += 1;
+  }
+
+  return {
+    hostileCount: hostiles.length,
+    meleeParts,
+    rangedParts,
+    healParts,
+    workParts,
+    severity: classifyThreatSeverity(hostiles.length, armedHostiles, healParts)
+  };
+}
+
+function hostileBody(hostile: unknown): Array<{ type: string; hits?: number }> {
+  if (typeof hostile !== "object" || hostile === null || !("body" in hostile)) return [];
+  const body = hostile.body;
+  if (!Array.isArray(body)) return [];
+  return body.filter((part): part is { type: string; hits?: number } =>
+    typeof part === "object" &&
+    part !== null &&
+    "type" in part &&
+    typeof part.type === "string" &&
+    (!("hits" in part) || typeof part.hits === "number")
+  );
+}
+
+function classifyThreatSeverity(
+  hostileCount: number,
+  armedHostiles: number,
+  healParts: number
+): ThreatSeverity {
+  if (hostileCount === 0) return "none";
+  if (healParts > 0 || armedHostiles > 1) return "high";
+  if (armedHostiles === 1) return "medium";
+  return "low";
 }
 
 function isStructure(value: unknown): value is AnyStructure {

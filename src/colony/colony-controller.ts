@@ -339,6 +339,7 @@ function maybeLogStatus(options: {
     `energy ${options.snapshot.energyAvailable}/${options.snapshot.energyCapacityAvailable} ` +
     `workers ${options.snapshot.workers.length}/${options.desiredWorkers} ` +
     `assignments H${assignments.harvest} D${assignments.deliver} U${assignments.upgrade} B${assignments.build} R${assignments.repair} ` +
+    `threat ${options.snapshot.threatAssessment.severity.toUpperCase()} hostiles ${options.snapshot.threatAssessment.hostileCount} ` +
     `sites ${options.snapshot.constructionSites.length} cpu ${options.cpuUsed.toFixed(1)}`
   );
   options.memory.lastStatusLog = options.tick;

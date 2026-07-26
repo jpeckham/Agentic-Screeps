@@ -20,6 +20,7 @@ export function drawRoomStatusVisual(options: {
     `Energy: ${options.snapshot.energyAvailable} / ${options.snapshot.energyCapacityAvailable}`,
     `Workers: ${options.workers} / ${options.desiredWorkers}`,
     `Strategy: ${options.memory.strategy ?? "unselected"}`,
+    `Threat: ${options.snapshot.threatAssessment.severity.toUpperCase()} hostiles ${options.snapshot.threatAssessment.hostileCount}`,
     "Assignments:",
     `Harvest ${assignments.harvest}`,
     `Deliver ${assignments.deliver}`,
