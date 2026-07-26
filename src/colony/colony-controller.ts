@@ -1,6 +1,7 @@
 import { mergeColonyConfig, type ColonyConfig } from "./config.js";
 import {
   createColonySnapshot,
+  type AnyStructure,
   type AnyRoom,
   type SnapshotConstants
 } from "./colony-snapshot.js";
@@ -12,11 +13,11 @@ import {
 import { planWorkforce } from "../workforce/workforce-planner.js";
 import { runWorker } from "../creeps/creep-runner.js";
 import { planConstruction, removeSourceBlockingConstruction } from "../construction/construction-planner.js";
-import { runTower } from "../structures/tower-controller.js";
+import { runTower, runTowerAttackIntent } from "../structures/tower-controller.js";
 import type { TowerLike } from "../structures/tower-controller.js";
 import { drawRoomStatusVisual } from "../visualization/room-status-visual.js";
 import { selectColonyStrategy } from "./strategy.js";
-import { decideDefensePosture } from "./defense-coordinator.js";
+import { decideDefensePosture, selectTowerAttackIntent } from "./defense-coordinator.js";
 import { createColonyStatus, formatColonyStatusLog, type ColonyStatus } from "./colony-status.js";
 
 export const DEFENSE_DISENGAGE_DELAY_TICKS = 25;
@@ -25,6 +26,7 @@ export interface ColonyGame {
   time: number;
   rooms: Record<string, AnyRoom>;
   creeps: Record<string, unknown>;
+  getObjectById?(id: string): unknown;
 }
 
 export interface ColonyRunOptions {
@@ -76,7 +78,14 @@ export function runColony(options: ColonyRunOptions): void {
     towerEnergyReserve: config.towerEnergyReserve
   });
   updateStrategy(memory, strategy.name, options.log);
-  runTowers(snapshot, options.constants, config, strategy.worker.towerEnergyReserve);
+  runTowers(
+    snapshot,
+    options.game,
+    options.constants,
+    config,
+    defenseMemory.posture,
+    strategy.worker.towerEnergyReserve
+  );
 
   const viableWorkers = snapshot.workers.filter((creep) =>
     hasWorkAndCarry(creep) && (creep.ticksToLive ?? 1500) > config.emergencyTtlThreshold
@@ -241,18 +250,32 @@ function logLifecycle(
 
 function runTowers(
   snapshot: ReturnType<typeof createColonySnapshot>,
+  game: ColonyGame,
   constants: SnapshotConstants,
   config: ColonyConfig,
+  posture: NonNullable<ColonyMemory["defense"]>["posture"],
   towerEnergyReserve = config.towerEnergyReserve
 ): void {
+  const attackIntent = selectTowerAttackIntent(posture, snapshot.hostiles, criticalDefenseStructures(snapshot, constants));
+  if (attackIntent.type === "attack") {
+    runTowerAttackIntent({
+      towers: snapshot.towers.filter(hasTowerActions).map((tower) => tower as TowerLike),
+      intent: attackIntent,
+      getObjectById: game.getObjectById ?? ((id) => snapshot.hostiles.find((hostile) => hostileId(hostile) === id))
+    });
+    return;
+  }
+
+  if (posture === "engage") return;
+
   const repairTargets = snapshot.damagedStructures.filter((structure) =>
     structure.structureType !== "constructedWall" && structure.structureType !== "rampart"
   );
   for (const tower of snapshot.towers) {
-    if (tower.attack && tower.heal && tower.repair) {
+    if (hasTowerActions(tower)) {
       runTower({
         tower: tower as TowerLike,
-        hostiles: snapshot.hostiles,
+        hostiles: [],
         injuredFriendlies: snapshot.injuredFriendlies,
         repairTargets,
         constants,
@@ -260,6 +283,29 @@ function runTowers(
       });
     }
   }
+}
+
+function hasTowerActions(tower: AnyStructure): boolean {
+  return Boolean(tower.attack && tower.heal && tower.repair);
+}
+
+function criticalDefenseStructures(
+  snapshot: ReturnType<typeof createColonySnapshot>,
+  constants: SnapshotConstants
+): unknown[] {
+  return [
+    ...snapshot.spawns,
+    ...snapshot.towers,
+    ...snapshot.energyStructures.filter((structure) => structure.structureType === constants.STRUCTURE_STORAGE),
+    ...(snapshot.controller ? [snapshot.controller] : [])
+  ];
+}
+
+function hostileId(hostile: unknown): string | undefined {
+  if (typeof hostile !== "object" || hostile === null || !("id" in hostile) || typeof hostile.id !== "string") {
+    return undefined;
+  }
+  return hostile.id;
 }
 
 function updateStrategy(

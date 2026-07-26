@@ -4,13 +4,13 @@ import { buildWorkerBody } from "../../src/workforce/body-builder.js";
 import { planWorkforce } from "../../src/workforce/workforce-planner.js";
 import { runColony, runOwnedColonies } from "../../src/colony/colony-controller.js";
 import { createColonySnapshot } from "../../src/colony/colony-snapshot.js";
-import { ColonyDefenseCoordinator, decideDefensePosture } from "../../src/colony/defense-coordinator.js";
+import { ColonyDefenseCoordinator, decideDefensePosture, selectTowerAttackIntent } from "../../src/colony/defense-coordinator.js";
 import { createColonyStatus, formatColonyStatusLog } from "../../src/colony/colony-status.js";
 import { createInitialColonyMemory } from "../../src/colony/colony-state.js";
 import { selectColonyStrategy } from "../../src/colony/strategy.js";
 import { runWorker } from "../../src/creeps/creep-runner.js";
 import { planConstruction } from "../../src/construction/construction-planner.js";
-import { runTower } from "../../src/structures/tower-controller.js";
+import { runTower, runTowerAttackIntent } from "../../src/structures/tower-controller.js";
 import { cleanupDeadCreepMemory } from "../../src/memory/creep-cleanup.js";
 import { migrateMemory } from "../../src/memory/migrations.js";
 import { createAiConsole } from "../../src/colony/console-api.js";
@@ -166,6 +166,22 @@ function createHostile(name: string, body: Array<{ type: string; hits?: number }
     name,
     body,
     pos: createPos(10, 10)
+  };
+}
+
+function createHostileAt(
+  name: string,
+  body: Array<{ type: string; hits?: number }>,
+  x: number,
+  y: number,
+  hits = 100,
+  hitsMax = 100
+) {
+  return {
+    ...createHostile(name, body),
+    hits,
+    hitsMax,
+    pos: createPos(x, y)
   };
 }
 
@@ -535,6 +551,61 @@ describe("colony defense coordination", () => {
     expect(decideDefensePosture(assessment)).toEqual(decideDefensePosture(assessment));
   });
 
+  test("tower attack intent holds outside ENGAGE or without valid hostiles", () => {
+    const hostile = createHostile("hostile-attack", [{ type: "attack" }]);
+    const criticalStructures = [createSpawn(300)];
+
+    expect(selectTowerAttackIntent("peace", [hostile], criticalStructures)).toEqual({ type: "hold" });
+    expect(selectTowerAttackIntent("alert", [hostile], criticalStructures)).toEqual({ type: "hold" });
+    expect(selectTowerAttackIntent("engage", [], criticalStructures)).toEqual({ type: "hold" });
+    expect(selectTowerAttackIntent("engage", [{ name: "hostile-without-id" }], criticalStructures)).toEqual({ type: "hold" });
+  });
+
+  test("tower attack intent selects one hostile during ENGAGE", () => {
+    const hostile = createHostile("hostile-attack", [{ type: "attack" }]);
+
+    expect(selectTowerAttackIntent("engage", [hostile], [createSpawn(300)])).toEqual({
+      type: "attack",
+      targetId: "hostile-attack"
+    });
+  });
+
+  test("tower target selection prioritizes hostile combat parts", () => {
+    const spawn = createSpawn(300);
+    const healer = createHostile("hostile-heal", [{ type: "heal" }]);
+    const ranged = createHostile("hostile-ranged", [{ type: "ranged_attack" }]);
+    const melee = createHostile("hostile-attack", [{ type: "attack" }]);
+    const worker = createHostile("hostile-work", [{ type: constants.WORK }]);
+    const unarmed = createHostile("hostile-move", [{ type: constants.MOVE }]);
+
+    expect(selectTowerAttackIntent("engage", [ranged, healer], [spawn])).toEqual({ type: "attack", targetId: "hostile-heal" });
+    expect(selectTowerAttackIntent("engage", [melee, ranged], [spawn])).toEqual({ type: "attack", targetId: "hostile-ranged" });
+    expect(selectTowerAttackIntent("engage", [worker, melee], [spawn])).toEqual({ type: "attack", targetId: "hostile-attack" });
+    expect(selectTowerAttackIntent("engage", [unarmed, worker], [spawn])).toEqual({ type: "attack", targetId: "hostile-work" });
+  });
+
+  test("tower target selection uses distance, damage, then ID tie-breakers", () => {
+    const spawn = { ...createSpawn(300), pos: createPos(20, 20) };
+    const far = createHostileAt("hostile-far", [{ type: "attack" }], 40, 40);
+    const nearHealthy = createHostileAt("hostile-near-healthy", [{ type: "attack" }], 21, 20, 100, 100);
+    const nearDamaged = createHostileAt("hostile-near-damaged", [{ type: "attack" }], 21, 20, 30, 100);
+    const nearDamagedA = createHostileAt("hostile-a", [{ type: "attack" }], 21, 20, 30, 100);
+    const nearDamagedB = createHostileAt("hostile-b", [{ type: "attack" }], 21, 20, 30, 100);
+
+    expect(selectTowerAttackIntent("engage", [far, nearHealthy], [spawn])).toEqual({
+      type: "attack",
+      targetId: "hostile-near-healthy"
+    });
+    expect(selectTowerAttackIntent("engage", [nearHealthy, nearDamaged], [spawn])).toEqual({
+      type: "attack",
+      targetId: "hostile-near-damaged"
+    });
+    expect(selectTowerAttackIntent("engage", [nearDamagedB, nearDamagedA], [spawn])).toEqual({
+      type: "attack",
+      targetId: "hostile-a"
+    });
+  });
+
   test("missing defense memory initializes with current posture and tick", () => {
     const memory = createInitialColonyMemory("W1N1", 1, 1);
     const room = createRoom();
@@ -780,6 +851,112 @@ describe("colony defense coordination", () => {
     expect(memory.defense).toMatchObject({ posture: "engage", pendingPosture: "peace", pendingSince: 50 });
     expect(log).toHaveBeenCalledWith(expect.stringContaining("status:"));
     expect(log).toHaveBeenCalledWith(expect.stringContaining("defense ENGAGE threat NONE"));
+  });
+
+  test("ENGAGE towers focus the selected colony-level hostile and skip heal or repair", () => {
+    const melee = createHostileAt("hostile-attack", [{ type: "attack" }], 21, 20);
+    const healer = createHostileAt("hostile-heal", [{ type: "heal" }], 40, 40);
+    const firstTower = createTower(900);
+    const secondTower = { ...createTower(900), id: "tower-2", pos: createPos(22, 20) };
+    const damagedRoad = { id: "road", structureType: constants.STRUCTURE_ROAD, hits: 20, hitsMax: 500, pos: createPos(24, 20) };
+    const injured = { ...createWorker("worker-injured", 50), hits: 40, hitsMax: 100 };
+    const room = createRoom({
+      rcl: 3,
+      structures: [createSpawn(300), firstTower, secondTower, damagedRoad],
+      creeps: [injured],
+      hostiles: [melee, healer]
+    });
+    const game = {
+      time: 80,
+      rooms: { W1N1: room },
+      creeps: { "worker-injured": injured },
+      getObjectById: vi.fn((id: string) => id === "hostile-heal" ? healer : undefined)
+    };
+
+    runColony({
+      game,
+      memory: createInitialColonyMemory("W1N1", 3, 79),
+      constants,
+      log: vi.fn(),
+      cpu: { getUsed: () => 1, bucket: 10000 },
+      config: { statusLogInterval: 0 }
+    });
+
+    expect(game.getObjectById).toHaveBeenCalledWith("hostile-heal");
+    expect(firstTower.attack).toHaveBeenCalledWith(healer);
+    expect(secondTower.attack).toHaveBeenCalledWith(healer);
+    expect(firstTower.attack).not.toHaveBeenCalledWith(melee);
+    expect(secondTower.attack).not.toHaveBeenCalledWith(melee);
+    expect(firstTower.heal).not.toHaveBeenCalled();
+    expect(secondTower.heal).not.toHaveBeenCalled();
+    expect(firstTower.repair).not.toHaveBeenCalled();
+    expect(secondTower.repair).not.toHaveBeenCalled();
+  });
+
+  test("towers attack hostiles when persisted posture is ENGAGE", () => {
+    const hostile = createHostile("hostile-attack", [{ type: "attack" }]);
+    const tower = createTower(900);
+    const room = createRoom({
+      rcl: 3,
+      structures: [createSpawn(300), tower],
+      hostiles: [hostile]
+    });
+
+    runColony({
+      game: { time: 80, rooms: { W1N1: room }, creeps: {} },
+      memory: createInitialColonyMemory("W1N1", 3, 79),
+      constants,
+      log: vi.fn(),
+      cpu: { getUsed: () => 1, bucket: 10000 },
+      config: { statusLogInterval: 0 }
+    });
+
+    expect(tower.attack).toHaveBeenCalledWith(hostile);
+  });
+
+  test("towers do not attack hostiles when persisted posture is ALERT", () => {
+    const hostile = createHostile("hostile-unarmed", [{ type: constants.MOVE }]);
+    const tower = createTower(900);
+    const room = createRoom({
+      rcl: 3,
+      structures: [createSpawn(300), tower],
+      hostiles: [hostile]
+    });
+
+    runColony({
+      game: { time: 81, rooms: { W1N1: room }, creeps: {} },
+      memory: createInitialColonyMemory("W1N1", 3, 80),
+      constants,
+      log: vi.fn(),
+      cpu: { getUsed: () => 1, bucket: 10000 },
+      config: { statusLogInterval: 0 }
+    });
+
+    expect(tower.attack).not.toHaveBeenCalled();
+  });
+
+  test("towers use persisted ENGAGE while de-escalation is pending", () => {
+    const hostile = createHostile("hostile-unarmed", [{ type: constants.MOVE }]);
+    const tower = createTower(900);
+    const memory = createInitialColonyMemory("W1N1", 3, 1);
+    memory.defense = { posture: "engage", enteredAt: 20, pendingPosture: "alert", pendingSince: 70 };
+    const room = createRoom({
+      rcl: 3,
+      structures: [createSpawn(300), tower],
+      hostiles: [hostile]
+    });
+
+    runColony({
+      game: { time: 81, rooms: { W1N1: room }, creeps: {} },
+      memory,
+      constants,
+      log: vi.fn(),
+      cpu: { getUsed: () => 1, bucket: 10000 },
+      config: { statusLogInterval: 0 }
+    });
+
+    expect(memory.defense).toMatchObject({ posture: "engage", pendingPosture: "alert" });
+    expect(tower.attack).toHaveBeenCalledWith(hostile);
   });
 
   test("defense memory updates preserve unrelated colony memory", () => {
@@ -2183,7 +2360,7 @@ describe("construction and tower policy", () => {
   });
 
   test("tower attacks hostiles before healing or repairs and preserves reserve", () => {
-    const hostile = { id: "hostile" };
+    const hostile = createHostile("hostile-attack", [{ type: "attack" }]);
     const tower = {
       store: { getUsedCapacity: vi.fn(() => 900) },
       attack: vi.fn(),
@@ -2194,6 +2371,51 @@ describe("construction and tower policy", () => {
     runTower({ tower, hostiles: [hostile], injuredFriendlies: [], repairTargets: [], constants, reserve: 500 });
     expect(tower.attack).toHaveBeenCalledWith(hostile);
     expect(tower.repair).not.toHaveBeenCalled();
+  });
+
+  test("tower attack intent resolves one target and all towers focus it", () => {
+    const target = createHostile("hostile-heal", [{ type: "heal" }]);
+    const firstTower = createTower(900);
+    const secondTower = createTower(900);
+
+    runTowerAttackIntent({
+      towers: [firstTower, secondTower],
+      intent: { type: "attack", targetId: "hostile-heal" },
+      getObjectById: vi.fn(() => target)
+    });
+
+    expect(firstTower.attack).toHaveBeenCalledWith(target);
+    expect(secondTower.attack).toHaveBeenCalledWith(target);
+    expect(firstTower.heal).not.toHaveBeenCalled();
+    expect(firstTower.repair).not.toHaveBeenCalled();
+    expect(secondTower.heal).not.toHaveBeenCalled();
+    expect(secondTower.repair).not.toHaveBeenCalled();
+  });
+
+  test("tower attack intent handles invalid targets and tower failures safely", () => {
+    const target = createHostile("hostile-attack", [{ type: "attack" }]);
+    const failingTower = createTower(900);
+    const workingTower = createTower(900);
+    failingTower.attack.mockImplementation(() => {
+      throw new Error("tower failed");
+    });
+
+    runTowerAttackIntent({
+      towers: [failingTower, workingTower],
+      intent: { type: "attack", targetId: "missing-hostile" },
+      getObjectById: vi.fn(() => undefined)
+    });
+    expect(failingTower.attack).not.toHaveBeenCalled();
+    expect(workingTower.attack).not.toHaveBeenCalled();
+
+    runTowerAttackIntent({
+      towers: [failingTower, workingTower],
+      intent: { type: "attack", targetId: "hostile-attack" },
+      getObjectById: vi.fn(() => target)
+    });
+
+    expect(failingTower.attack).toHaveBeenCalledWith(target);
+    expect(workingTower.attack).toHaveBeenCalledWith(target);
   });
 
   test("tower heals before repair and does not repair below reserve", () => {
@@ -2734,7 +2956,7 @@ describe("integration scenarios", () => {
     expect(builder.build).toHaveBeenCalledWith(towerSite);
     expect(builder.build).not.toHaveBeenCalledWith(extensionSite);
 
-    const hostile = { id: "hostile" };
+    const hostile = createHostile("hostile-attack", [{ type: "attack" }]);
     const damagedRoad = { id: "road", structureType: constants.STRUCTURE_ROAD, hits: 20, hitsMax: 500, pos: createPos(24, 20) };
     const tower = createTower(900);
     const defenseRoom = createRoom({

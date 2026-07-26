@@ -1,3 +1,5 @@
+import type { TowerAttackIntent } from "../colony/defense-coordinator.js";
+
 export interface TowerConstants {
   RESOURCE_ENERGY: string;
 }
@@ -42,6 +44,25 @@ export function runTower(options: {
     .sort((left, right) => repairPriority(left) - repairPriority(right))[0];
   if (repairTarget && energy > options.reserve) {
     options.tower.repair(repairTarget);
+  }
+}
+
+export function runTowerAttackIntent(options: {
+  towers: TowerLike[];
+  intent: TowerAttackIntent;
+  getObjectById(id: string): unknown;
+}): void {
+  if (options.intent.type !== "attack") return;
+
+  const target = options.getObjectById(options.intent.targetId);
+  if (!target) return;
+
+  for (const tower of options.towers) {
+    try {
+      tower.attack(target);
+    } catch {
+      continue;
+    }
   }
 }
 
