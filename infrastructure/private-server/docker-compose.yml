@@ -1,0 +1,11 @@
+services:
+  screeps:
+    image: screepers/screeps-launcher:latest
+    environment:
+      STEAM_KEY: "${STEAM_KEY:-}"
+    ports:
+      - "${SCREEPS_PRIVATE_HOST:-127.0.0.1}:${SCREEPS_PRIVATE_PORT:-21025}:21025"
+      - "${SCREEPS_PRIVATE_HOST:-127.0.0.1}:${SCREEPS_PRIVATE_CLI_PORT:-21026}:21026"
+    volumes:
+      - "../../${SCREEPS_PRIVATE_DATA_DIR:-.screeps-private}:/screeps"
+    restart: unless-stopped

@@ -4,147 +4,103 @@ The deliverable is working code and tests. Do not merely create a prompt documen
 
 ## Objective
 
-Prevent the colony from dropping its defensive posture immediately when a threat disappears or weakens.
+Prevent the colony from dropping directly from ENGAGE or ALERT to PEACE the instant hostiles disappear.
 
-This slice adds delayed de-escalation only.
+This slice adds a short threat-free delay before returning to PEACE.
 
-It does not control towers, spawn defenders, select targets, or add RECOVER.
+It does not add RECOVER, tower commands, defender spawning, or creep coordination.
 
 ## Ownership
 
-Use this flow:
+Use the existing flow:
 
 ThreatAssessment
   -> ColonyDefenseCoordinator
-  -> raw DefenseDecision
+  -> DefenseDecision
   -> ColonyDefenseMemory
-  -> persisted defensive posture
-  -> colony status and transition log
 
-The ColonyDefenseCoordinator still owns the raw posture decision from the current tick's threat assessment.
+The ColonyDefenseCoordinator owns the delayed disengagement rule.
 
-Memory only stabilizes posture transitions between ticks.
+## Memory change
 
-Do not place delayed disengagement logic inside:
-
-- tower code
-- spawn planning
-- worker roles
-- individual creeps
-- construction planning
-- strategic doctrine
-
-## Required model
-
-Keep the existing posture model:
+Extend the existing defense memory:
 
 type DefensivePosture = "peace" | "alert" | "engage";
-
-Extend the existing colony defense memory with the smallest timing state needed:
 
 interface ColonyDefenseMemory {
   posture: DefensivePosture;
   enteredAt: number;
-  pendingPosture?: DefensivePosture;
-  pendingSince?: number;
+  lastThreatTick?: number;
 }
 
-Store this under the existing colony memory structure.
+Preserve all existing memory fields.
 
-Do not persist:
+## Configuration
 
-- hostile objects
-- full threat assessments
-- target IDs
-- tower orders
-- spawn requests
+Add or adapt one typed setting:
 
-## Policy
+interface DefensePostureConfig {
+  disengagementDelayTicks: number;
+}
 
-Use this initial delay:
+Use a small conservative default such as 3 ticks.
 
-const DEFENSE_DISENGAGE_DELAY_TICKS = 25;
-
-Escalation is immediate:
-
-- PEACE -> ALERT
-- PEACE -> ENGAGE
-- ALERT -> ENGAGE
-
-De-escalation is delayed:
-
-- ENGAGE -> ALERT
-- ENGAGE -> PEACE
-- ALERT -> PEACE
-
-If the raw DefenseDecision requests a lower posture than the persisted posture:
-
-1. If no matching pending de-escalation exists:
-   - set pendingPosture to the raw posture
-   - set pendingSince to Game.time
-   - keep the persisted posture unchanged
-   - do not emit a transition log
-2. If the same pendingPosture remains requested and Game.time - pendingSince is less than DEFENSE_DISENGAGE_DELAY_TICKS:
-   - keep the persisted posture unchanged
-   - preserve enteredAt
-   - do not emit a transition log
-3. If the same pendingPosture remains requested for at least DEFENSE_DISENGAGE_DELAY_TICKS:
-   - update posture to pendingPosture
-   - set enteredAt to Game.time
-   - clear pendingPosture and pendingSince
-   - emit one transition log
-
-If the raw DefenseDecision is equal to the persisted posture:
-
-- preserve enteredAt
-- clear any pending de-escalation
-- do not emit a transition log
-
-If the raw DefenseDecision requests a higher posture than the persisted posture:
-
-- update posture immediately
-- set enteredAt to Game.time
-- clear any pending de-escalation
-- emit one transition log
-
-Use an explicit posture ordering:
-
-peace < alert < engage
-
-Do not infer ordering from strings.
+Do not scatter the value as a magic number.
 
 ## Required behavior
 
-Each tick:
+When threat severity is LOW, MEDIUM, or HIGH:
 
-1. Build the existing ThreatAssessment.
-2. Produce the existing raw DefenseDecision.
-3. Read the previous persisted ColonyDefenseMemory.
-4. Apply delayed disengagement policy.
-5. Store the effective persisted posture.
-6. Show the effective persisted posture in colony status.
+- calculate posture using the existing rules
+- update lastThreatTick to Game.time
+- transition normally between ALERT and ENGAGE
 
-The status output must show the persisted posture, not the raw posture, while disengagement is pending.
+When threat severity is NONE:
+
+- if the current posture is PEACE, remain PEACE
+- if no previous threat tick exists, transition to PEACE
+- if Game.time - lastThreatTick is less than disengagementDelayTicks:
+  - preserve the current ALERT or ENGAGE posture
+  - preserve enteredAt
+  - do not log a transition
+- once the delay expires:
+  - transition to PEACE
+  - reset enteredAt to Game.time
+  - emit one transition log
 
 Examples:
 
-- Persisted ENGAGE, raw PEACE for 10 ticks: status still shows ENGAGE and no transition log.
-- Persisted ENGAGE, raw PEACE for 25 ticks: update to PEACE and log `[colony E48S29] defense ENGAGE -> PEACE`.
-- Persisted ENGAGE, raw PEACE pending, raw ENGAGE returns before the delay expires: clear pending disengagement and keep ENGAGE.
-- Persisted ALERT, raw PEACE pending, raw ENGAGE appears: update immediately to ENGAGE and log `[colony E48S29] defense ALERT -> ENGAGE`.
+ENGAGE with last threat at tick 100:
 
-Do not log every tick.
+- tick 101: remain ENGAGE
+- tick 102: remain ENGAGE
+- tick 103 or configured boundary: transition to PEACE
 
-## Memory migration
+Use one clearly documented inclusive or exclusive boundary and test it directly.
 
-If the repository has schema-versioned memory migration:
+## Integration
 
-- add the smallest idempotent migration needed
-- preserve all existing colony memory
-- preserve existing defense.posture and defense.enteredAt
-- safely initialize missing pending fields by leaving them absent
+For each owned colony:
 
-If no migration framework exists, initialize defensively at runtime without adding a new framework.
+1. Build the existing ThreatAssessment.
+2. Read existing ColonyDefenseMemory.
+3. Apply the delayed disengagement rule.
+4. Persist posture and lastThreatTick.
+5. Show the persisted posture in existing colony status.
+
+Do not change tower, spawn, or worker behavior.
+
+## Status
+
+Keep the existing status format.
+
+The status should continue showing the persisted posture during the delay:
+
+defense ENGAGE threat NONE hostiles 0
+
+This is expected: no current threat is visible, but the colony remains temporarily engaged.
+
+Do not add new per-tick logs.
 
 ## Tests
 
@@ -152,41 +108,34 @@ Write failing tests first.
 
 Required tests:
 
-1. Escalation from PEACE to ALERT is immediate.
-2. Escalation from PEACE to ENGAGE is immediate.
-3. Escalation from ALERT to ENGAGE is immediate.
-4. ENGAGE to PEACE does not change before the disengage delay expires.
-5. ENGAGE to ALERT does not change before the disengage delay expires.
-6. ALERT to PEACE does not change before the disengage delay expires.
-7. A pending de-escalation preserves enteredAt.
-8. A pending de-escalation produces no transition log.
-9. A completed delayed de-escalation updates posture.
-10. A completed delayed de-escalation resets enteredAt.
-11. A completed delayed de-escalation logs exactly once.
-12. Returning to the persisted posture clears pending disengagement.
-13. Escalating while a de-escalation is pending clears pending disengagement.
-14. Changing from one pending lower posture to another resets pendingSince.
-15. Existing unrelated colony memory is preserved.
-16. Multiple colonies maintain independent disengagement timers.
-17. Colony status shows the persisted posture while de-escalation is pending.
-18. Tower behavior is unchanged.
-19. Spawn planning is unchanged.
-20. Worker behavior is unchanged.
-21. Existing Slice 1, Slice 2, Slice 3A1, Slice 3A2, and Slice 3A3 tests still pass.
+1. Visible LOW threat updates lastThreatTick.
+2. Visible MEDIUM threat updates lastThreatTick.
+3. Visible HIGH threat updates lastThreatTick.
+4. PEACE with no threat remains PEACE.
+5. ENGAGE with no threat remains ENGAGE before the delay expires.
+6. ALERT with no threat remains ALERT before the delay expires.
+7. enteredAt is preserved while waiting.
+8. No transition log is emitted during the waiting period.
+9. ENGAGE transitions to PEACE when the delay expires.
+10. ALERT transitions to PEACE when the delay expires.
+11. Transition to PEACE resets enteredAt.
+12. Transition to PEACE logs exactly once.
+13. A new threat during the delay updates lastThreatTick and cancels disengagement.
+14. Existing unrelated colony memory is preserved.
+15. Multiple colonies maintain independent delay state.
+16. All earlier slice tests remain passing.
 
 ## Restrictions
 
 - Do not deploy.
 - Do not push unless explicitly instructed.
 - Do not modify CI/CD.
+- Do not add RECOVER.
 - Do not control towers.
 - Do not spawn defenders.
-- Do not add RECOVER.
 - Do not modify worker behavior.
 - Do not add target selection.
-- Do not persist hostile objects.
-- Do not persist full threat assessments.
-- Do not create empty future defense classes.
+- Do not add strategic or doctrine logic.
 
 ## Verification
 
@@ -199,27 +148,23 @@ npm run test:coverage
 npm run build
 npm run verify
 
-Use repository-equivalent commands if names differ.
-
 ## Definition of done
 
 Slice 3A4 is complete when:
 
-- defensive escalation remains immediate
-- defensive de-escalation is delayed by DEFENSE_DISENGAGE_DELAY_TICKS
-- enteredAt changes only when the persisted posture changes
-- pending disengagement does not log every tick
-- transition logs occur once per completed posture change
-- colony status shows the persisted posture
-- unrelated memory remains intact
-- tower, spawn, and worker behavior remain unchanged
+- recent threat time is persisted per colony
+- ALERT and ENGAGE do not instantly drop to PEACE
+- the configured threat-free delay is deterministic
+- posture transition logging remains one-time only
+- all existing behavior and tests remain intact
 - all verification commands pass
 - no deployment occurred
 
 Final response must include:
 
 - files changed
-- memory structure added or changed
+- configuration added
+- exact disengagement boundary used
 - tests added
 - verification results
 - confirmation that no deployment occurred

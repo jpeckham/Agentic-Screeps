@@ -1,0 +1,42 @@
+{
+  "name": "unarmed-scout",
+  "description": "One hostile scout with MOVE parts only.",
+  "initialState": {
+    "baseline": "owned-colony"
+  },
+  "durationTicks": 8,
+  "hostileCreeps": [
+    {
+      "name": "scout-1",
+      "body": ["move"],
+      "roomName": "W1N1",
+      "x": 24,
+      "y": 25,
+      "action": "hold"
+    }
+  ],
+  "assertions": [
+    {
+      "type": "noRuntimeException",
+      "label": "bot loop runs without exception"
+    },
+    {
+      "type": "equals",
+      "label": "hostile count becomes one",
+      "path": "hostileCount",
+      "expected": 1
+    },
+    {
+      "type": "equals",
+      "label": "threat severity becomes LOW",
+      "path": "threat",
+      "expected": "LOW"
+    },
+    {
+      "type": "equals",
+      "label": "defensive posture becomes ALERT",
+      "path": "posture",
+      "expected": "ALERT"
+    }
+  ]
+}

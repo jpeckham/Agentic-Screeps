@@ -14,7 +14,18 @@
     "build": "node scripts/build-release.mjs",
     "verify": "npm run typecheck && npm run lint && npm run test:coverage && npm run build && node scripts/verify-release.mjs dist/release-manifest.json",
     "deploy:candidate": "node scripts/deploy-screeps.mjs",
-    "deploy:live": "node scripts/deploy-live.mjs"
+    "deploy:live": "node scripts/deploy-live.mjs",
+    "screeps:deploy:local": "node scripts/deploy-local-screeps.mjs",
+    "screeps:start": "node scripts/private-screeps.mjs start",
+    "screeps:stop": "node scripts/private-screeps.mjs stop",
+    "screeps:reset": "node scripts/private-screeps-world.mjs reset",
+    "screeps:seed": "node scripts/private-screeps-world.mjs seed",
+    "screeps:hostiles": "node scripts/private-screeps-world.mjs hostiles",
+    "screeps:scenario": "node scripts/run-private-scenario.mjs",
+    "screeps:status": "node scripts/private-screeps.mjs status",
+    "screeps:logs": "node scripts/private-screeps.mjs logs",
+    "test:screeps-smoke": "node scripts/run-private-scenario.mjs no-hostile-baseline",
+    "test:combat": "node scripts/run-private-scenario.mjs --all"
   },
   "devDependencies": {
     "@eslint/js": "^9.31.0",

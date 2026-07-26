@@ -1,0 +1,37 @@
+{
+  "name": "threat-disappears",
+  "description": "Engaged room where the hostile is removed and delayed de-escalation is observed.",
+  "initialState": {
+    "baseline": "owned-colony"
+  },
+  "durationTicks": 20,
+  "hostileCreeps": [
+    {
+      "name": "attacker-1",
+      "body": ["move", "attack"],
+      "roomName": "W1N1",
+      "x": 24,
+      "y": 25,
+      "action": "attackSpawn"
+    }
+  ],
+  "assertions": [
+    {
+      "type": "noRuntimeException",
+      "label": "bot loop runs without exception"
+    },
+    {
+      "type": "postureTransition",
+      "label": "posture reaches ENGAGE",
+      "path": "posture",
+      "from": "PEACE",
+      "to": "ENGAGE",
+      "withinTicks": 5
+    },
+    {
+      "type": "exists",
+      "label": "pending de-escalation is visible",
+      "path": "pendingDeescalation"
+    }
+  ]
+}

@@ -1,0 +1,47 @@
+{
+  "name": "melee-attacker",
+  "description": "One MOVE+ATTACK hostile placed within useful tower range.",
+  "initialState": {
+    "baseline": "owned-colony"
+  },
+  "durationTicks": 12,
+  "hostileCreeps": [
+    {
+      "name": "attacker-1",
+      "body": ["tough", "tough", "tough", "tough", "tough", "move", "attack"],
+      "roomName": "W1N1",
+      "x": 24,
+      "y": 25,
+      "action": "attackSpawn"
+    }
+  ],
+  "assertions": [
+    {
+      "type": "noRuntimeException",
+      "label": "bot loop runs without exception"
+    },
+    {
+      "type": "everOneOf",
+      "label": "threat severity becomes MEDIUM",
+      "path": "threat",
+      "expected": ["MEDIUM"]
+    },
+    {
+      "type": "everEquals",
+      "label": "posture becomes ENGAGE",
+      "path": "posture",
+      "expected": "ENGAGE"
+    },
+    {
+      "type": "everEquals",
+      "label": "tower attacks selected hostile",
+      "path": "tower.action",
+      "expected": "attack"
+    },
+    {
+      "type": "hitPointsDecreased",
+      "label": "hostile hit points decreased",
+      "path": "hostiles.attacker-1.hits"
+    }
+  ]
+}

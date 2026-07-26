@@ -1,0 +1,6 @@
+nodeVersion: Krypton
+mods:
+  - screepsmod-auth
+  - screepsmod-admin-utils
+serverConfig:
+  tickRate: 1000

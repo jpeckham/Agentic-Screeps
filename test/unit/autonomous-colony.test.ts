@@ -6,7 +6,7 @@ import { runColony, runOwnedColonies } from "../../src/colony/colony-controller.
 import { createColonySnapshot } from "../../src/colony/colony-snapshot.js";
 import { ColonyDefenseCoordinator, decideDefensePosture, selectTowerAttackIntent } from "../../src/colony/defense-coordinator.js";
 import { createColonyStatus, formatColonyStatusLog } from "../../src/colony/colony-status.js";
-import { createInitialColonyMemory } from "../../src/colony/colony-state.js";
+import { createInitialColonyMemory, type ColonyRootMemory } from "../../src/colony/colony-state.js";
 import { selectColonyStrategy } from "../../src/colony/strategy.js";
 import { runWorker } from "../../src/creeps/creep-runner.js";
 import { planConstruction } from "../../src/construction/construction-planner.js";
@@ -396,7 +396,7 @@ describe("threat assessment", () => {
   });
 
   test("one hostile with ATTACK returns medium", () => {
-    const hostile = createHostile("hostile-attack", [{ type: "attack" }]);
+    const hostile = { ...createHostile("hostile-attack", [{ type: "attack" }]), hits: 100, hitsMax: 100 };
 
     const snapshot = createColonySnapshot(createRoom({ hostiles: [hostile] }), constants);
 
@@ -552,7 +552,7 @@ describe("colony defense coordination", () => {
   });
 
   test("tower attack intent holds outside ENGAGE or without valid hostiles", () => {
-    const hostile = createHostile("hostile-attack", [{ type: "attack" }]);
+    const hostile = { ...createHostile("hostile-attack", [{ type: "attack" }]), hits: 100, hitsMax: 100 };
     const criticalStructures = [createSpawn(300)];
 
     expect(selectTowerAttackIntent("peace", [hostile], criticalStructures)).toEqual({ type: "hold" });
@@ -3454,6 +3454,69 @@ describe("memory, console API, and observability", () => {
     });
 
     expect(room.find).toHaveBeenCalledTimes(6);
+  });
+
+  test("private testing telemetry is absent unless explicitly enabled", () => {
+    const hostile = createHostile("hostile-attack", [{ type: "attack" }]);
+    const tower = createTower(900);
+    const room = createRoom({
+      rcl: 3,
+      structures: [createSpawn(300), tower],
+      hostiles: [hostile]
+    });
+    const memory = { colonies: { W1N1: createInitialColonyMemory("W1N1", 3, 1) } };
+
+    runOwnedColonies({
+      game: { time: 400, rooms: { W1N1: room }, creeps: {} },
+      memory,
+      constants,
+      log: vi.fn(),
+      cpu: { getUsed: () => 1, bucket: 10000 }
+    });
+
+    expect(memory).not.toHaveProperty("testing");
+  });
+
+  test("private testing telemetry records scenario assertion state when enabled", () => {
+    const hostile = { ...createHostile("hostile-attack", [{ type: "attack" }]), hits: 100, hitsMax: 100 };
+    const tower = createTower(900);
+    const room = createRoom({
+      rcl: 3,
+      structures: [createSpawn(300), tower],
+      hostiles: [hostile]
+    });
+    const memory: ColonyRootMemory = {
+      colonies: { W1N1: createInitialColonyMemory("W1N1", 3, 1) },
+      config: { privateTestingEnabled: true }
+    };
+
+    runOwnedColonies({
+      game: {
+        time: 401,
+        rooms: { W1N1: room },
+        creeps: {},
+        getObjectById: vi.fn(() => hostile)
+      },
+      memory,
+      constants,
+      log: vi.fn(),
+      cpu: { getUsed: () => 1, bucket: 10000 }
+    });
+
+    expect(memory.testing).toEqual({
+      tick: 401,
+      colonies: {
+        W1N1: {
+          threat: "MEDIUM",
+          posture: "ENGAGE",
+          hostileCount: 1,
+          selectedTargetId: "hostile-attack",
+          selectedTargetName: "hostile-attack",
+          hostiles: { "hostile-attack": { hits: 100, hitsMax: 100 } },
+          tower: { action: "attack" }
+        }
+      }
+    });
   });
 });
 

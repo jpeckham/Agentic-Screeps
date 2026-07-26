@@ -1,0 +1,44 @@
+{
+  "name": "healer-and-attacker",
+  "description": "One attacker and one healer for target-priority behavior.",
+  "initialState": {
+    "baseline": "owned-colony"
+  },
+  "durationTicks": 12,
+  "hostileCreeps": [
+    {
+      "name": "attacker-1",
+      "body": ["move", "attack"],
+      "roomName": "W1N1",
+      "x": 24,
+      "y": 25,
+      "action": "attackSpawn"
+    },
+    {
+      "name": "healer-1",
+      "body": ["move", "heal"],
+      "roomName": "W1N1",
+      "x": 25,
+      "y": 25,
+      "action": "hold"
+    }
+  ],
+  "assertions": [
+    {
+      "type": "noRuntimeException",
+      "label": "bot loop runs without exception"
+    },
+    {
+      "type": "equals",
+      "label": "severity becomes HIGH",
+      "path": "threat",
+      "expected": "HIGH"
+    },
+    {
+      "type": "equals",
+      "label": "selected target is healer",
+      "path": "selectedTargetName",
+      "expected": "healer-1"
+    }
+  ]
+}

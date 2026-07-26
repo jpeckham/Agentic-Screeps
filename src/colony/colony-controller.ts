@@ -16,6 +16,7 @@ import { planConstruction, removeSourceBlockingConstruction } from "../construct
 import { runTower, runTowerAttackIntent } from "../structures/tower-controller.js";
 import type { TowerLike } from "../structures/tower-controller.js";
 import { drawRoomStatusVisual } from "../visualization/room-status-visual.js";
+import { recordPrivateTestingColonyObservation } from "../private-testing/bot-telemetry.js";
 import { selectColonyStrategy } from "./strategy.js";
 import { decideDefensePosture, selectTowerAttackIntent } from "./defense-coordinator.js";
 import { createColonyStatus, formatColonyStatusLog, type ColonyStatus } from "./colony-status.js";
@@ -54,6 +55,15 @@ export function runOwnedColonies(options: Omit<ColonyRunOptions, "memory"> & {
       const colonyMemory = ensureColonyMemory(options.memory, room.name, snapshot.rcl, options.game.time);
       const config = options.config ?? options.memory.config;
       runColony({ ...options, memory: colonyMemory, snapshot, ...(config ? { config } : {}) });
+      if (options.memory.config?.privateTestingEnabled) {
+        recordPrivateTestingColonyObservation({
+          memory: options.memory,
+          tick: options.game.time,
+          colonyMemory,
+          snapshot,
+          criticalStructures: criticalDefenseStructures(snapshot, options.constants)
+        });
+      }
     }
   }
 }

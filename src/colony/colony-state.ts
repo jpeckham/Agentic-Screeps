@@ -49,8 +49,25 @@ export interface ColonyRootMemory {
   colonies?: Record<string, ColonyMemory>;
   config?: {
     visualsEnabled?: boolean;
+    privateTestingEnabled?: boolean;
   };
   creeps?: Record<string, ColonyCreepMemory | Record<string, unknown>>;
+  testing?: {
+    tick: number;
+    colonies: Record<string, {
+      threat: string;
+      posture: string;
+      hostileCount: number;
+      selectedTargetId?: string;
+      selectedTargetName?: string;
+      pendingPosture?: string;
+      pendingSince?: number;
+      hostiles: Record<string, { hits: number; hitsMax?: number }>;
+      tower: {
+        action: "attack" | "hold";
+      };
+    }>;
+  };
 }
 
 export function createInitialColonyMemory(

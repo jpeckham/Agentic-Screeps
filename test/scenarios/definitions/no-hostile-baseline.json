@@ -1,0 +1,33 @@
+{
+  "name": "no-hostile-baseline",
+  "description": "Seeded owned room with no hostile creeps.",
+  "initialState": {
+    "baseline": "owned-colony"
+  },
+  "durationTicks": 5,
+  "hostileCreeps": [],
+  "assertions": [
+    {
+      "type": "noRuntimeException",
+      "label": "bot loop runs without exception"
+    },
+    {
+      "type": "equals",
+      "label": "threat severity is NONE",
+      "path": "threat",
+      "expected": "NONE"
+    },
+    {
+      "type": "equals",
+      "label": "defensive posture is PEACE",
+      "path": "posture",
+      "expected": "PEACE"
+    },
+    {
+      "type": "equals",
+      "label": "tower does not attack",
+      "path": "tower.action",
+      "expected": "hold"
+    }
+  ]
+}
