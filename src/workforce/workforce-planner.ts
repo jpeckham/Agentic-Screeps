@@ -31,10 +31,15 @@ export interface WorkforcePlan {
 const BODY_CONSTANTS = { WORK: "work", CARRY: "carry", MOVE: "move" };
 
 export function planWorkforce(input: WorkforceInput): WorkforcePlan {
+  const spawningWorkerCount = input.spawningWorkerCount ?? 0;
+  const activeReplacementCount = input.replacementCount + (input.spawningReplacementCount ?? 0);
   const emergency = input.workerCount === 0 || input.expiringWorkerCount >= input.workerCount;
   const desiredWorkers = desiredWorkerCount(input);
 
   if (emergency) {
+    if (input.workerCount + spawningWorkerCount > 0 && input.expiringWorkerCount <= activeReplacementCount) {
+      return { desiredWorkers, emergency: true };
+    }
     const body = input.energyAvailable >= 200
       ? [BODY_CONSTANTS.WORK, BODY_CONSTANTS.CARRY, BODY_CONSTANTS.MOVE]
       : buildWorkerBody(input.energyAvailable, input.energyCapacityAvailable, BODY_CONSTANTS);
@@ -45,8 +50,7 @@ export function planWorkforce(input: WorkforceInput): WorkforcePlan {
     };
   }
 
-  const activeReplacementCount = input.replacementCount + (input.spawningReplacementCount ?? 0);
-  const effectiveWorkers = input.workerCount + input.replacementCount + (input.spawningWorkerCount ?? 0);
+  const effectiveWorkers = input.workerCount + input.replacementCount + spawningWorkerCount;
   if (effectiveWorkers < desiredWorkers || input.expiringWorkerCount > activeReplacementCount) {
     const body = buildWorkerBody(input.energyAvailable, input.energyCapacityAvailable, BODY_CONSTANTS);
     if (body.length > 0) {

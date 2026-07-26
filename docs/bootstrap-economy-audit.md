@@ -10,6 +10,7 @@ This audit narrows the current codebase to Slice 1: Bootstrap Economy. The repos
 
 - Current local HEAD at audit start: `0d62750 docs: add bootstrap economy slice prompt`.
 - Previous pushed runtime commit before this audit: `31b7715 fix: format room status output`.
+- Audit reply prompt preserved locally in `b631c75 docs: add slice 1 audit reply prompt`.
 - No additional deployment is authorized for this Slice 1 task.
 - CI/CD still deploys pushed commits to the Screeps `default` branch through `.github/workflows/ci-cd.yml`; this audit does not change that pipeline.
 
@@ -18,14 +19,14 @@ This audit narrows the current codebase to Slice 1: Bootstrap Economy. The repos
 | Requirement | Status | Evidence | Notes |
 | --- | --- | --- | --- |
 | 1. Discover owned room without hardcoded name | Complete and tested | `runOwnedColonies` iterates `game.rooms` and checks `room.controller?.my`; tests cover owned-room execution. | `runColony` also has a fallback `firstOwnedRoomName`. |
-| 2. Initialize memory without deleting unrelated memory | Complete and tested | `ensureColonyMemory` only initializes `memory.colonies[roomName]`; cleanup test preserves unrelated memory. | Root migrations also preserve existing memory through `createRootMemory`. |
+| 2. Initialize memory without deleting unrelated memory | Complete and tested | `ensureColonyMemory` only initializes `memory.colonies[roomName]`; cleanup test preserves unrelated memory; migration test preserves unrelated fields while applying root defaults. | Root migrations can resume across ticks under the current CPU budget. |
 | 3. Recover from zero creeps when spawn has at least 200 energy | Complete and tested | `planWorkforce` enters emergency at `workerCount === 0`; emergency scenarios spawn `[work, carry, move]`. | Unavoidable limitation below 200 energy is documented in `docs/autonomous-colony.md`. |
 | 4. Spawn minimal functional worker `[WORK,CARRY,MOVE]` | Complete and tested | `buildWorkerBody(200, 300)` and emergency plan tests assert the body. | Uses string constants in tests and Screeps constants at runtime. |
 | 5. Harvest energy from a source | Complete and tested | `runWorker` calls `harvest` when acquiring and no storage is available; fresh RCL1 tests cover harvest. | Source balancing exists but is beyond Slice 1 proof. |
 | 6. Return energy to spawn and extensions | Complete and tested | `findRefillTarget` prioritizes spawn then extension; tests cover spawn refill and direct extension refill before upgrade. |  |
-| 7. Maintain small, bounded worker population | Complete and tested | `desiredWorkerCount` caps workers through strategy/default max; replacement overlap test exists; spawning workers now count as reserved workforce. | Current strategy/construction pressure can raise targets above the Slice 1 3-4 worker baseline because later-slice strategy code already exists. |
+| 7. Maintain small, bounded worker population | Complete and tested | `desiredWorkerCount` caps workers through strategy/default max; replacement overlap test exists; normal, emergency, and replacement workers currently being spawned now count as reserved workforce. | Current strategy/construction pressure can raise targets above the Slice 1 3-4 worker baseline because later-slice strategy code already exists. |
 | 8. Upgrade controller when spawn/extension demand is satisfied | Complete and tested | `performWork` upgrades after refill demand is gone; tests cover upgrade when priorities are satisfied. | Current broader implementation can choose build/repair before normal upgrade when sites/repairs exist, which is outside Slice 1. |
-| 9. Replace expiring critical workers before total loss | Complete and tested | `replacementTtlThreshold`, `replacing` tags, and replacement scenario tests cover this. | Duplicate protection currently relies on visible replacement creep memory, not direct spawn reservations. |
+| 9. Replace expiring critical workers before total loss | Complete and tested | `replacementTtlThreshold`, `replacing` tags, replacement scenario tests, and current-spawning replacement tests cover this. | Legitimate overlap remains allowed; duplicate replacement requests are suppressed by visible and spawning replacement metadata. |
 | 10. Clean memory for dead creeps | Complete and tested | `cleanupDeadCreepMemory` removes absent creep keys and preserves active/unrelated memory. | Called from `runNormalEmpireLoop`. |
 | 11. Continue after global reset or new code deployment | Complete and tested | Migrations are idempotent; runtime release-state tests cover new release activation; colony memory is durable; reset-like rerun test preserves existing colony memory. | No live reset was performed during this audit. |
 | 12. Emit concise status telemetry without logging every tick | Complete and tested | `maybeLogStatus` is interval-gated; test asserts no log before interval and one status line at interval. | Lifecycle and strategy logs are state-change based. |
@@ -44,13 +45,13 @@ This audit narrows the current codebase to Slice 1: Bootstrap Economy. The repos
 | 7. Worker upgrades when energy structures are full | Covered | `upgrades when refill, build, and repair priorities are satisfied`. |
 | 8. Invalid target is cleared and reassigned | Covered | `clears invalid work assignments when targets no longer need energy`. |
 | 9. Workforce does not grow indefinitely | Covered | Workforce bounded replacement test. |
-| 10. Spawning creeps are included in workforce accounting | Covered | Added failing planner test; production planner now accepts `spawningWorkerCount` and `spawningReplacementCount`, and controller passes active `spawn.spawning` reservations. |
+| 10. Spawning creeps are included in workforce accounting | Covered | Added failing planner tests for normal, emergency, and replacement reservations; production planner now accepts `spawningWorkerCount` and `spawningReplacementCount`, and controller passes active `spawn.spawning` reservations from pending creep name and memory. |
 | 11. Replacement overlap can temporarily exceed target | Covered | Replacement overlap scenario permits old and replacement to coexist without duplicate spawn. |
-| 12. Duplicate replacement requests are prevented | Covered | Existing `replacing` tag tests. |
-| 13. Stale replacement reservation is cleared | Partially covered | Stale replacement markers for non-expiring dead names are ignored, but there is no explicit cleanup of persistent reservation state because no reservation state exists. |
+| 12. Duplicate replacement requests are prevented | Covered | Existing `replacing` tag tests plus currently-spawning replacement test. |
+| 13. Stale replacement reservation is cleared | Covered | Stale replacement markers for non-expiring dead names are ignored; no persistent reservation state exists, so there is nothing durable to clear. |
 | 14. Expiring critical worker triggers early replacement | Covered | `tags expiring worker replacements...` and Scenario E. |
 | 15. Dead creep memory is removed | Covered | `cleans only dead creep memory...`. |
-| 16. Existing unrelated memory remains intact | Covered | Same cleanup test plus migrations. |
+| 16. Existing unrelated memory remains intact | Covered | Cleanup test plus direct migration preservation test. |
 | 17. One creep exception does not stop other creeps | Covered | `one creep action failure does not stop other creeps from running`. |
 | 18. Global reset does not lose required persistent state | Covered | Migration/release-state tests plus reset-like `runOwnedColonies` rerun test preserving `initializedAt` and unrelated memory. |
 | Deterministic multi-tick bootstrap scenario | Covered | Scenario A: fresh RCL1 room bootstraps, harvests, refills, spawns more workers, and upgrades. |
@@ -89,7 +90,7 @@ Secondary risk found during audit and fixed:
 Conclusion:
 
 - A temporary count over target is expected during replacement overlap.
-- Duplicate replacement from missing spawn-reservation accounting is now covered by a failing-then-passing planner test and the controller reservation wiring.
+- Duplicate normal, emergency, and replacement requests from missing spawn-reservation accounting are now covered by failing-then-passing planner tests and controller reservation wiring.
 
 ## Below Target While Energy Was Full
 
@@ -105,12 +106,13 @@ No evidence currently points to body-building affordability when energy is full;
 ## Defects To Fix For Slice 1
 
 1. Fixed: explicit workforce accounting for creeps currently being spawned.
-   - This prevents duplicate normal or replacement requests while the spawn already has a pending creep.
+   - This prevents duplicate normal, emergency, and replacement requests while the spawn already has a pending creep.
    - Implemented without a queue or broad architecture.
 
 2. Fixed: direct tests added for Slice 1 worker priorities and persistence:
    - extension refill before upgrade
    - reset-like rerun preserves existing colony memory
+   - migration preserves unrelated top-level memory while applying initialization defaults
 
 3. Maintained: construction, tower, strategy, doctrine, and telemetry were not expanded while fixing Slice 1.
 

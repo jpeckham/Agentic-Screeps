@@ -10,6 +10,7 @@ import { runWorker } from "../../src/creeps/creep-runner.js";
 import { planConstruction } from "../../src/construction/construction-planner.js";
 import { runTower } from "../../src/structures/tower-controller.js";
 import { cleanupDeadCreepMemory } from "../../src/memory/creep-cleanup.js";
+import { migrateMemory } from "../../src/memory/migrations.js";
 import { createAiConsole } from "../../src/colony/console-api.js";
 import { drawRoomStatusVisual } from "../../src/visualization/room-status-visual.js";
 
@@ -222,6 +223,43 @@ describe("workforce planning", () => {
     expect(plan.desiredWorkers).toBe(4);
     expect(plan.spawnRequest).toBeUndefined();
   });
+
+  test("counts a spawning emergency worker as active emergency recovery", () => {
+    const plan = planWorkforce({
+      roomName: "W1N1",
+      rcl: 1,
+      sourceCount: 2,
+      energyAvailable: 300,
+      energyCapacityAvailable: 300,
+      workerCount: 0,
+      replacementCount: 0,
+      spawningWorkerCount: 1,
+      expiringWorkerCount: 0,
+      constructionSiteCount: 0
+    });
+
+    expect(plan.emergency).toBe(true);
+    expect(plan.spawnRequest).toBeUndefined();
+  });
+
+  test("counts a spawning replacement against expiring worker demand", () => {
+    const plan = planWorkforce({
+      roomName: "W1N1",
+      rcl: 2,
+      sourceCount: 2,
+      energyAvailable: 550,
+      energyCapacityAvailable: 550,
+      workerCount: 1,
+      replacementCount: 0,
+      spawningWorkerCount: 1,
+      spawningReplacementCount: 1,
+      expiringWorkerCount: 1,
+      constructionSiteCount: 0
+    });
+
+    expect(plan.emergency).toBe(true);
+    expect(plan.spawnRequest).toBeUndefined();
+  });
 });
 
 describe("colony strategy selection", () => {
@@ -382,6 +420,108 @@ describe("colony execution", () => {
 
     expect(memory.colonies.W1N1.initializedAt).toBe(1);
     expect(memory.unrelated).toEqual({ keep: true });
+  });
+
+  test("counts a currently spawning worker before requesting another one", () => {
+    const workers = [
+      createWorker("worker-1", 50),
+      createWorker("worker-2", 50),
+      createWorker("worker-3", 50)
+    ];
+    const spawn = { ...createSpawn(550), spawning: null as { name: string } | null };
+    spawn.spawning = { name: "worker-spawning" };
+    const spawningWorker = createWorker("worker-spawning", 0);
+    spawningWorker.memory.role = "worker";
+    const room = createRoom({
+      rcl: 2,
+      structures: [spawn],
+      creeps: workers,
+      energyAvailable: 550,
+      energyCapacityAvailable: 550
+    });
+
+    runColony({
+      game: {
+        time: 22,
+        rooms: { W1N1: room },
+        creeps: {
+          ...Object.fromEntries(workers.map((worker) => [worker.name, worker])),
+          "worker-spawning": spawningWorker
+        }
+      },
+      memory: createInitialColonyMemory("W1N1", 2, 22),
+      constants,
+      log: vi.fn(),
+      cpu: { getUsed: () => 1, bucket: 10000 }
+    });
+
+    expect(spawn.spawnCreep).not.toHaveBeenCalled();
+  });
+
+  test("currently spawning emergency worker prevents a duplicate emergency spawn", () => {
+    const spawn = { ...createSpawn(300), spawning: null as { name: string } | null };
+    spawn.spawning = { name: "emergency-worker-23" };
+    const spawningWorker = createWorker("emergency-worker-23", 0);
+    spawningWorker.memory.role = "emergency-worker";
+    const room = createRoom({
+      structures: [spawn],
+      creeps: [],
+      energyAvailable: 300,
+      energyCapacityAvailable: 300
+    });
+
+    runColony({
+      game: {
+        time: 23,
+        rooms: { W1N1: room },
+        creeps: { "emergency-worker-23": spawningWorker }
+      },
+      memory: createInitialColonyMemory("W1N1", 1, 23),
+      constants,
+      log: vi.fn(),
+      cpu: { getUsed: () => 1, bucket: 10000 }
+    });
+
+    expect(spawn.spawnCreep).not.toHaveBeenCalled();
+  });
+
+  test("currently spawning replacement prevents another replacement request", () => {
+    const expiring = createWorker("worker-expiring", 50, 100);
+    const workers = [
+      expiring,
+      createWorker("worker-healthy-1", 50),
+      createWorker("worker-healthy-2", 50),
+      createWorker("worker-healthy-3", 50)
+    ];
+    const spawn = { ...createSpawn(550), spawning: null as { name: string } | null };
+    spawn.spawning = { name: "worker-replacement" };
+    const spawningReplacement = createWorker("worker-replacement", 0);
+    spawningReplacement.memory.role = "worker";
+    spawningReplacement.memory.replacing = "worker-expiring";
+    const room = createRoom({
+      rcl: 2,
+      structures: [spawn],
+      creeps: workers,
+      energyAvailable: 550,
+      energyCapacityAvailable: 550
+    });
+
+    runColony({
+      game: {
+        time: 24,
+        rooms: { W1N1: room },
+        creeps: {
+          ...Object.fromEntries(workers.map((worker) => [worker.name, worker])),
+          "worker-replacement": spawningReplacement
+        }
+      },
+      memory: createInitialColonyMemory("W1N1", 2, 24),
+      constants,
+      log: vi.fn(),
+      cpu: { getUsed: () => 1, bucket: 10000 }
+    });
+
+    expect(spawn.spawnCreep).not.toHaveBeenCalled();
   });
 
   test("logs workforce target changes once", () => {
@@ -2110,6 +2250,23 @@ describe("memory, console API, and observability", () => {
 
     expect(memory.creeps).toEqual({ alive: { role: "worker" } });
     expect(memory.unrelated).toEqual({ keep: true });
+  });
+
+  test("initialization migration keeps unrelated memory fields", () => {
+    const memory = {
+      unrelated: { keep: true },
+      creeps: { worker: { role: "worker" } }
+    };
+
+    migrateMemory(memory);
+    migrateMemory(memory);
+
+    expect(memory.unrelated).toEqual({ keep: true });
+    expect(memory.creeps).toEqual({ worker: { role: "worker" } });
+    expect(memory).toEqual(expect.objectContaining({
+      colonies: {},
+      config: { visualsEnabled: true }
+    }));
   });
 
   test("safe console API reports status and toggles visuals without reset commands", () => {
