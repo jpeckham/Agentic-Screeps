@@ -35,6 +35,7 @@ function formatStatus(colony: ColonyMemory): unknown {
     rcl: colony.lastKnownRcl,
     emergency: colony.emergency,
     strategy: colony.strategy ?? "unselected",
+    defense: colony.defense,
     workforceTarget: colony.workforceTarget,
     lastPlanTick: colony.lastPlanTick
   };

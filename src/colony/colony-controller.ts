@@ -66,6 +66,7 @@ export function runColony(options: ColonyRunOptions): void {
     : ensureColonyMemory(options.memory, room.name, snapshot.rcl, options.game.time);
   const cpuStart = options.cpu.getUsed();
   const defenseDecision = decideDefensePosture(snapshot.threatAssessment);
+  const defenseMemory = updateDefenseMemory(memory, defenseDecision.posture, options.game.time, options.log);
 
   logLifecycle(memory, snapshot.rcl, options.game.time, options.log);
   const strategy = selectColonyStrategy(snapshot, {
@@ -122,7 +123,7 @@ export function runColony(options: ColonyRunOptions): void {
     snapshot,
     memory,
     desiredWorkers: plan.desiredWorkers,
-    defenseDecision,
+    defenseDecision: { ...defenseDecision, posture: defenseMemory.posture },
     cpuUsed: options.cpu.getUsed() - cpuStart
   });
   maybeLogStatus({
@@ -268,6 +269,24 @@ function updateStrategy(
     memory.strategy = strategyName;
     log(`[colony ${memory.roomName}] strategy selected: ${strategyName}`);
   }
+}
+
+function updateDefenseMemory(
+  memory: ColonyMemory,
+  posture: NonNullable<ColonyMemory["defense"]>["posture"],
+  tick: number,
+  log: (message: string) => void
+): NonNullable<ColonyMemory["defense"]> {
+  const previous = memory.defense;
+  if (!previous) {
+    memory.defense = { posture, enteredAt: tick };
+    return memory.defense;
+  }
+  if (previous.posture === posture) return previous;
+
+  memory.defense = { posture, enteredAt: tick };
+  log(`[colony ${memory.roomName}] defense ${previous.posture.toUpperCase()} -> ${posture.toUpperCase()}`);
+  return memory.defense;
 }
 
 function spawnFromPlan(

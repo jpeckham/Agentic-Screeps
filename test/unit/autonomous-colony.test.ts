@@ -534,6 +534,139 @@ describe("colony defense coordination", () => {
 
     expect(decideDefensePosture(assessment)).toEqual(decideDefensePosture(assessment));
   });
+
+  test("missing defense memory initializes with current posture and tick", () => {
+    const memory = createInitialColonyMemory("W1N1", 1, 1);
+    const room = createRoom();
+
+    runColony({
+      game: { time: 42, rooms: { W1N1: room }, creeps: {} },
+      memory,
+      constants,
+      log: vi.fn(),
+      cpu: { getUsed: () => 1, bucket: 10000 }
+    });
+
+    expect(memory.defense).toEqual({ posture: "peace", enteredAt: 42 });
+  });
+
+  test("unchanged defensive posture preserves enteredAt and does not log a transition", () => {
+    const memory = createInitialColonyMemory("W1N1", 1, 1);
+    memory.defense = { posture: "peace", enteredAt: 12 };
+    const log = vi.fn();
+
+    runColony({
+      game: { time: 43, rooms: { W1N1: createRoom() }, creeps: {} },
+      memory,
+      constants,
+      log,
+      cpu: { getUsed: () => 1, bucket: 10000 }
+    });
+
+    expect(memory.defense).toEqual({ posture: "peace", enteredAt: 12 });
+    expect(log).not.toHaveBeenCalledWith(expect.stringContaining("defense PEACE -> PEACE"));
+    expect(log).not.toHaveBeenCalledWith(expect.stringContaining("defense"));
+  });
+
+  test.each([
+    {
+      name: "PEACE to ALERT",
+      previous: "peace" as const,
+      enteredAt: 10,
+      tick: 44,
+      hostiles: [createHostile("hostile-unarmed", [{ type: constants.MOVE }])],
+      current: "alert" as const,
+      logLine: "[colony W1N1] defense PEACE -> ALERT"
+    },
+    {
+      name: "ALERT to ENGAGE",
+      previous: "alert" as const,
+      enteredAt: 11,
+      tick: 45,
+      hostiles: [createHostile("hostile-attack", [{ type: "attack" }])],
+      current: "engage" as const,
+      logLine: "[colony W1N1] defense ALERT -> ENGAGE"
+    },
+    {
+      name: "ENGAGE to PEACE",
+      previous: "engage" as const,
+      enteredAt: 12,
+      tick: 46,
+      hostiles: [],
+      current: "peace" as const,
+      logLine: "[colony W1N1] defense ENGAGE -> PEACE"
+    }
+  ])("$name updates memory, resets enteredAt, and logs once", ({ previous, enteredAt, tick, hostiles, current, logLine }) => {
+    const memory = createInitialColonyMemory("W1N1", 1, 1);
+    memory.defense = { posture: previous, enteredAt };
+    const log = vi.fn();
+
+    runColony({
+      game: { time: tick, rooms: { W1N1: createRoom({ hostiles }) }, creeps: {} },
+      memory,
+      constants,
+      log,
+      cpu: { getUsed: () => 1, bucket: 10000 },
+      config: { statusLogInterval: 0 }
+    });
+
+    expect(memory.defense).toEqual({ posture: current, enteredAt: tick });
+    const defenseLogs = log.mock.calls
+      .map(([message]) => message)
+      .filter((message) => String(message).includes("defense"));
+    expect(defenseLogs).toHaveLength(1);
+    expect(log).toHaveBeenCalledWith(logLine);
+  });
+
+  test("defense memory updates preserve unrelated colony memory", () => {
+    const memory = createInitialColonyMemory("W1N1", 2, 1);
+    memory.defense = { posture: "peace", enteredAt: 20 };
+    memory.lastStatusLog = 19;
+    memory.lastConstructionPlan = { tick: 18, rcl: 2, structureType: "extension", x: 21, y: 20 };
+
+    runColony({
+      game: {
+        time: 47,
+        rooms: { W1N1: createRoom({ hostiles: [createHostile("hostile-unarmed", [{ type: constants.MOVE }])] }) },
+        creeps: {}
+      },
+      memory,
+      constants,
+      log: vi.fn(),
+      cpu: { getUsed: () => 1, bucket: 10000 },
+      config: { statusLogInterval: 0 }
+    });
+
+    expect(memory).toMatchObject({
+      lastStatusLog: 19,
+      lastConstructionPlan: { tick: 18, rcl: 2, structureType: "extension", x: 21, y: 20 },
+      defense: { posture: "alert", enteredAt: 47 }
+    });
+  });
+
+  test("multiple owned colonies maintain independent defense memory", () => {
+    const rootMemory = {
+      colonies: {
+        W1N1: { ...createInitialColonyMemory("W1N1", 1, 1), defense: { posture: "peace" as const, enteredAt: 10 } },
+        W2N2: { ...createInitialColonyMemory("W2N2", 1, 1), defense: { posture: "engage" as const, enteredAt: 11 } }
+      }
+    };
+    const calmRoom = createRoom();
+    const alertRoom = { ...createRoom({ hostiles: [createHostile("hostile-unarmed", [{ type: constants.MOVE }])] }), name: "W2N2" };
+    alertRoom.controller = { ...alertRoom.controller, pos: { ...alertRoom.controller.pos, roomName: "W2N2" } };
+
+    runOwnedColonies({
+      game: { time: 48, rooms: { W1N1: calmRoom, W2N2: alertRoom }, creeps: {} },
+      memory: rootMemory,
+      constants,
+      log: vi.fn(),
+      cpu: { getUsed: () => 1, bucket: 10000 },
+      config: { statusLogInterval: 0 }
+    });
+
+    expect(rootMemory.colonies.W1N1.defense).toEqual({ posture: "peace", enteredAt: 10 });
+    expect(rootMemory.colonies.W2N2.defense).toEqual({ posture: "alert", enteredAt: 48 });
+  });
 });
 
 describe("colony execution", () => {
@@ -2819,16 +2952,29 @@ describe("memory, console API, and observability", () => {
   test("initialization migration keeps unrelated memory fields", () => {
     const memory = {
       unrelated: { keep: true },
-      creeps: { worker: { role: "worker" } }
+      creeps: { worker: { role: "worker" } },
+      colonies: {
+        W1N1: {
+          ...createInitialColonyMemory("W1N1", 2, 3),
+          strategy: "bootstrap",
+          customField: true
+        }
+      }
     };
 
+    migrateMemory(memory);
     migrateMemory(memory);
     migrateMemory(memory);
 
     expect(memory.unrelated).toEqual({ keep: true });
     expect(memory.creeps).toEqual({ worker: { role: "worker" } });
+    expect(memory.colonies.W1N1).toMatchObject({
+      roomName: "W1N1",
+      strategy: "bootstrap",
+      customField: true,
+      defense: { posture: "peace", enteredAt: 0 }
+    });
     expect(memory).toEqual(expect.objectContaining({
-      colonies: {},
       config: { visualsEnabled: true }
     }));
   });
@@ -2836,6 +2982,7 @@ describe("memory, console API, and observability", () => {
   test("safe console API reports status and toggles visuals without reset commands", () => {
     const memory = { colonies: { W1N1: createInitialColonyMemory("W1N1", 2, 1) }, config: { visualsEnabled: true } };
     memory.colonies.W1N1.strategy = "balanced-early";
+    memory.colonies.W1N1.defense = { posture: "alert", enteredAt: 25 };
     const ai = createAiConsole(memory);
 
     expect(ai.status("W1N1")).toEqual({
@@ -2843,6 +2990,7 @@ describe("memory, console API, and observability", () => {
       rcl: 2,
       emergency: false,
       strategy: "balanced-early",
+      defense: { posture: "alert", enteredAt: 25 },
       workforceTarget: 0,
       lastPlanTick: 0
     });

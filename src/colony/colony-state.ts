@@ -1,6 +1,7 @@
 export type WorkType = "harvest" | "deliver" | "build" | "upgrade" | "repair";
 export type WorkerRole = "worker" | "emergency-worker";
 export type WorkerMode = "acquire" | "work";
+export type DefensivePosture = "peace" | "alert" | "engage";
 
 export interface WorkAssignment {
   type: WorkType;
@@ -16,6 +17,11 @@ export interface ColonyCreepMemory {
   replacing?: string;
 }
 
+export interface ColonyDefenseMemory {
+  posture: DefensivePosture;
+  enteredAt: number;
+}
+
 export interface ColonyMemory {
   roomName: string;
   initializedAt: number;
@@ -26,6 +32,7 @@ export interface ColonyMemory {
   forceReplan?: boolean;
   workforceTarget: number;
   strategy?: string;
+  defense?: ColonyDefenseMemory;
   lastStatusLog?: number;
   lastConstructionPlan?: {
     tick: number;
