@@ -16,6 +16,7 @@ import { runTower } from "../structures/tower-controller.js";
 import type { TowerLike } from "../structures/tower-controller.js";
 import { drawRoomStatusVisual } from "../visualization/room-status-visual.js";
 import { selectColonyStrategy } from "./strategy.js";
+import { decideDefensePosture, type DefenseDecision } from "./defense-coordinator.js";
 
 export interface ColonyGame {
   time: number;
@@ -63,6 +64,7 @@ export function runColony(options: ColonyRunOptions): void {
     ? options.memory
     : ensureColonyMemory(options.memory, room.name, snapshot.rcl, options.game.time);
   const cpuStart = options.cpu.getUsed();
+  const defenseDecision = decideDefensePosture(snapshot.threatAssessment);
 
   logLifecycle(memory, snapshot.rcl, options.game.time, options.log);
   const strategy = selectColonyStrategy(snapshot, {
@@ -119,6 +121,7 @@ export function runColony(options: ColonyRunOptions): void {
     snapshot,
     memory,
     desiredWorkers: plan.desiredWorkers,
+    defenseDecision,
     tick: options.game.time,
     interval: config.statusLogInterval,
     cpuUsed: options.cpu.getUsed() - cpuStart,
@@ -176,6 +179,7 @@ export function runColony(options: ColonyRunOptions): void {
         memory,
         workers: snapshot.workers.length,
         desiredWorkers: plan.desiredWorkers,
+        defenseDecision,
         cpuUsed: options.cpu.getUsed() - cpuStart
       });
     } catch (error) {
@@ -321,6 +325,7 @@ function maybeLogStatus(options: {
   snapshot: ReturnType<typeof createColonySnapshot>;
   memory: ColonyMemory;
   desiredWorkers: number;
+  defenseDecision: DefenseDecision;
   tick: number;
   interval: number;
   cpuUsed: number;
@@ -339,6 +344,7 @@ function maybeLogStatus(options: {
     `energy ${options.snapshot.energyAvailable}/${options.snapshot.energyCapacityAvailable} ` +
     `workers ${options.snapshot.workers.length}/${options.desiredWorkers} ` +
     `assignments H${assignments.harvest} D${assignments.deliver} U${assignments.upgrade} B${assignments.build} R${assignments.repair} ` +
+    `defense ${options.defenseDecision.posture.toUpperCase()} ` +
     `threat ${options.snapshot.threatAssessment.severity.toUpperCase()} hostiles ${options.snapshot.threatAssessment.hostileCount} ` +
     `sites ${options.snapshot.constructionSites.length} cpu ${options.cpuUsed.toFixed(1)}`
   );

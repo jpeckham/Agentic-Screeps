@@ -1,5 +1,6 @@
 import { BUILD_INFO } from "../runtime/build-info.js";
 import type { ColonySnapshot } from "../colony/colony-snapshot.js";
+import type { DefenseDecision } from "../colony/defense-coordinator.js";
 import type { ColonyMemory } from "../colony/colony-state.js";
 
 export function drawRoomStatusVisual(options: {
@@ -7,6 +8,7 @@ export function drawRoomStatusVisual(options: {
   memory: ColonyMemory;
   workers: number;
   desiredWorkers: number;
+  defenseDecision?: DefenseDecision;
   cpuUsed: number;
 }): void {
   const visual = options.snapshot.room.visual;
@@ -20,6 +22,7 @@ export function drawRoomStatusVisual(options: {
     `Energy: ${options.snapshot.energyAvailable} / ${options.snapshot.energyCapacityAvailable}`,
     `Workers: ${options.workers} / ${options.desiredWorkers}`,
     `Strategy: ${options.memory.strategy ?? "unselected"}`,
+    `Defense: ${(options.defenseDecision?.posture ?? "peace").toUpperCase()}`,
     `Threat: ${options.snapshot.threatAssessment.severity.toUpperCase()} hostiles ${options.snapshot.threatAssessment.hostileCount}`,
     "Assignments:",
     `Harvest ${assignments.harvest}`,

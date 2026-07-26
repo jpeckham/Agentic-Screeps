@@ -4,6 +4,7 @@ import { buildWorkerBody } from "../../src/workforce/body-builder.js";
 import { planWorkforce } from "../../src/workforce/workforce-planner.js";
 import { runColony, runOwnedColonies } from "../../src/colony/colony-controller.js";
 import { createColonySnapshot } from "../../src/colony/colony-snapshot.js";
+import { ColonyDefenseCoordinator, decideDefensePosture } from "../../src/colony/defense-coordinator.js";
 import { createInitialColonyMemory } from "../../src/colony/colony-state.js";
 import { selectColonyStrategy } from "../../src/colony/strategy.js";
 import { runWorker } from "../../src/creeps/creep-runner.js";
@@ -459,6 +460,78 @@ describe("threat assessment", () => {
       workParts: 1,
       severity: "medium"
     });
+  });
+});
+
+describe("colony defense coordination", () => {
+  test("ColonyDefenseCoordinator owns the posture decision", () => {
+    const coordinator = new ColonyDefenseCoordinator();
+
+    expect(coordinator.decide({
+      hostileCount: 1,
+      meleeParts: 0,
+      rangedParts: 1,
+      healParts: 0,
+      workParts: 0,
+      severity: "medium"
+    })).toEqual({ posture: "engage", reason: "threat medium" });
+  });
+
+  test("NONE threat produces PEACE", () => {
+    expect(decideDefensePosture({
+      hostileCount: 0,
+      meleeParts: 0,
+      rangedParts: 0,
+      healParts: 0,
+      workParts: 0,
+      severity: "none"
+    })).toEqual({ posture: "peace", reason: "threat none" });
+  });
+
+  test("LOW threat produces ALERT", () => {
+    expect(decideDefensePosture({
+      hostileCount: 1,
+      meleeParts: 0,
+      rangedParts: 0,
+      healParts: 0,
+      workParts: 0,
+      severity: "low"
+    })).toEqual({ posture: "alert", reason: "threat low" });
+  });
+
+  test("MEDIUM threat produces ENGAGE", () => {
+    expect(decideDefensePosture({
+      hostileCount: 1,
+      meleeParts: 1,
+      rangedParts: 0,
+      healParts: 0,
+      workParts: 0,
+      severity: "medium"
+    })).toEqual({ posture: "engage", reason: "threat medium" });
+  });
+
+  test("HIGH threat produces ENGAGE", () => {
+    expect(decideDefensePosture({
+      hostileCount: 2,
+      meleeParts: 2,
+      rangedParts: 0,
+      healParts: 0,
+      workParts: 0,
+      severity: "high"
+    })).toEqual({ posture: "engage", reason: "threat high" });
+  });
+
+  test("the same assessment always produces the same decision", () => {
+    const assessment = {
+      hostileCount: 1,
+      meleeParts: 0,
+      rangedParts: 0,
+      healParts: 1,
+      workParts: 0,
+      severity: "high" as const
+    };
+
+    expect(decideDefensePosture(assessment)).toEqual(decideDefensePosture(assessment));
   });
 });
 
@@ -2500,6 +2573,73 @@ describe("integration scenarios", () => {
 
     expect(spawn.spawnCreep).not.toHaveBeenCalled();
   });
+
+  test("defensive posture leaves tower behavior unchanged", () => {
+    const hostile = createHostile("hostile-attack", [{ type: "attack" }]);
+    const tower = createTower(900);
+    const damagedRoad = { id: "road", structureType: constants.STRUCTURE_ROAD, hits: 20, hitsMax: 500, pos: createPos(24, 20) };
+    const room = createRoom({
+      rcl: 3,
+      structures: [createSpawn(300), tower, damagedRoad],
+      hostiles: [hostile]
+    });
+
+    runColony({
+      game: { time: 310, rooms: { W1N1: room }, creeps: {} },
+      memory: createInitialColonyMemory("W1N1", 3, 310),
+      constants,
+      log: vi.fn(),
+      cpu: { getUsed: () => 1, bucket: 10000 }
+    });
+
+    expect(tower.attack).toHaveBeenCalledWith(hostile);
+    expect(tower.repair).not.toHaveBeenCalled();
+  });
+
+  test("defensive posture leaves spawn planning unchanged", () => {
+    const spawn = createSpawn(300);
+    const room = createRoom({
+      structures: [spawn],
+      energyAvailable: 300,
+      hostiles: [createHostile("hostile-unarmed", [{ type: constants.MOVE }])]
+    });
+
+    runColony({
+      game: { time: 311, rooms: { W1N1: room }, creeps: {} },
+      memory: createInitialColonyMemory("W1N1", 1, 311),
+      constants,
+      log: vi.fn(),
+      cpu: { getUsed: () => 1, bucket: 10000 }
+    });
+
+    expect(spawn.spawnCreep).toHaveBeenCalledWith(
+      ["work", "carry", "move"],
+      expect.stringMatching(/^emergency-worker-/),
+      expect.objectContaining({
+        memory: expect.objectContaining({ role: "emergency-worker", mode: "acquire" })
+      })
+    );
+  });
+
+  test("defensive posture leaves worker behavior unchanged", () => {
+    const worker = createWorker("worker-defense-unchanged", 50);
+    const spawn = createSpawn(300);
+    const room = createRoom({
+      structures: [spawn],
+      creeps: [worker],
+      hostiles: [createHostile("hostile-attack", [{ type: "attack" }])]
+    });
+
+    runColony({
+      game: { time: 312, rooms: { W1N1: room }, creeps: { "worker-defense-unchanged": worker } },
+      memory: createInitialColonyMemory("W1N1", 1, 312),
+      constants,
+      log: vi.fn(),
+      cpu: { getUsed: () => 1, bucket: 10000 }
+    });
+
+    expect(worker.upgradeController).toHaveBeenCalledWith(room.controller);
+  });
 });
 
 describe("memory, console API, and observability", () => {
@@ -2598,7 +2738,7 @@ describe("memory, console API, and observability", () => {
     });
 
     expect(log).toHaveBeenCalledWith(
-      "[colony W1N1] status: RCL 2 NORMAL energy 300/550 workers 4/4 assignments H1 D0 U2 B1 R0 threat NONE hostiles 0 sites 1 cpu 0.0"
+      "[colony W1N1] status: RCL 2 NORMAL energy 300/550 workers 4/4 assignments H1 D0 U2 B1 R0 defense PEACE threat NONE hostiles 0 sites 1 cpu 0.0"
     );
     expect(memory.lastStatusLog).toBe(10);
 
