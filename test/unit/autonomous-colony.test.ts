@@ -2060,7 +2060,15 @@ describe("memory, console API, and observability", () => {
     memory.colonies.W1N1.strategy = "balanced-early";
     const ai = createAiConsole(memory);
 
-    expect(ai.status("W1N1")).toEqual(expect.objectContaining({ roomName: "W1N1", strategy: "balanced-early" }));
+    expect(ai.status("W1N1")).toEqual({
+      roomName: "W1N1",
+      rcl: 2,
+      emergency: false,
+      strategy: "balanced-early",
+      workforceTarget: 0,
+      lastPlanTick: 0
+    });
+    expect(ai.status("W1N1")).not.toHaveProperty("initializedAt");
     ai.setVisuals(false);
     ai.forceReplan("W1N1");
 

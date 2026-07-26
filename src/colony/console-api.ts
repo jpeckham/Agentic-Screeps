@@ -10,7 +10,10 @@ export function createAiConsole(memory: ColonyRootMemory): AiConsole {
   return {
     status(roomName?: string): unknown {
       const colonies = memory.colonies ?? {};
-      if (roomName) return colonies[roomName] ?? { error: "unknown colony", roomName };
+      if (roomName) {
+        const colony = colonies[roomName];
+        return colony ? formatStatus(colony) : { error: "unknown colony", roomName };
+      }
       return Object.values(colonies).map(formatStatus);
     },
     setVisuals(enabled: boolean): void {
