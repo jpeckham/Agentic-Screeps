@@ -579,6 +579,15 @@ describe("colony defense coordination", () => {
       logLine: "[colony W1N1] defense PEACE -> ALERT"
     },
     {
+      name: "PEACE to ENGAGE",
+      previous: "peace" as const,
+      enteredAt: 10,
+      tick: 44,
+      hostiles: [createHostile("hostile-attack", [{ type: "attack" }])],
+      current: "engage" as const,
+      logLine: "[colony W1N1] defense PEACE -> ENGAGE"
+    },
+    {
       name: "ALERT to ENGAGE",
       previous: "alert" as const,
       enteredAt: 11,
@@ -586,17 +595,8 @@ describe("colony defense coordination", () => {
       hostiles: [createHostile("hostile-attack", [{ type: "attack" }])],
       current: "engage" as const,
       logLine: "[colony W1N1] defense ALERT -> ENGAGE"
-    },
-    {
-      name: "ENGAGE to PEACE",
-      previous: "engage" as const,
-      enteredAt: 12,
-      tick: 46,
-      hostiles: [],
-      current: "peace" as const,
-      logLine: "[colony W1N1] defense ENGAGE -> PEACE"
     }
-  ])("$name updates memory, resets enteredAt, and logs once", ({ previous, enteredAt, tick, hostiles, current, logLine }) => {
+  ])("$name escalates immediately, resets enteredAt, and logs once", ({ previous, enteredAt, tick, hostiles, current, logLine }) => {
     const memory = createInitialColonyMemory("W1N1", 1, 1);
     memory.defense = { posture: previous, enteredAt };
     const log = vi.fn();
@@ -616,6 +616,170 @@ describe("colony defense coordination", () => {
       .filter((message) => String(message).includes("defense"));
     expect(defenseLogs).toHaveLength(1);
     expect(log).toHaveBeenCalledWith(logLine);
+  });
+
+  test.each([
+    {
+      name: "ENGAGE to PEACE",
+      previous: "engage" as const,
+      rawHostiles: [],
+      pending: "peace" as const
+    },
+    {
+      name: "ENGAGE to ALERT",
+      previous: "engage" as const,
+      rawHostiles: [createHostile("hostile-unarmed", [{ type: constants.MOVE }])],
+      pending: "alert" as const
+    },
+    {
+      name: "ALERT to PEACE",
+      previous: "alert" as const,
+      rawHostiles: [],
+      pending: "peace" as const
+    }
+  ])("$name starts pending de-escalation before the delay expires", ({ previous, rawHostiles, pending }) => {
+    const memory = createInitialColonyMemory("W1N1", 1, 1);
+    memory.defense = { posture: previous, enteredAt: 20 };
+    const log = vi.fn();
+
+    runColony({
+      game: { time: 50, rooms: { W1N1: createRoom({ hostiles: rawHostiles }) }, creeps: {} },
+      memory,
+      constants,
+      log,
+      cpu: { getUsed: () => 1, bucket: 10000 },
+      config: { statusLogInterval: 0 }
+    });
+
+    expect(memory.defense).toEqual({
+      posture: previous,
+      enteredAt: 20,
+      pendingPosture: pending,
+      pendingSince: 50
+    });
+    expect(log).not.toHaveBeenCalledWith(expect.stringContaining("defense"));
+  });
+
+  test("pending de-escalation preserves posture and enteredAt until delay expires", () => {
+    const memory = createInitialColonyMemory("W1N1", 1, 1);
+    memory.defense = { posture: "engage", enteredAt: 20, pendingPosture: "peace", pendingSince: 50 };
+    const log = vi.fn();
+
+    runColony({
+      game: { time: 74, rooms: { W1N1: createRoom() }, creeps: {} },
+      memory,
+      constants,
+      log,
+      cpu: { getUsed: () => 1, bucket: 10000 },
+      config: { statusLogInterval: 0 }
+    });
+
+    expect(memory.defense).toEqual({
+      posture: "engage",
+      enteredAt: 20,
+      pendingPosture: "peace",
+      pendingSince: 50
+    });
+    expect(log).not.toHaveBeenCalledWith(expect.stringContaining("defense"));
+  });
+
+  test("completed delayed de-escalation updates memory and logs exactly once", () => {
+    const memory = createInitialColonyMemory("W1N1", 1, 1);
+    memory.defense = { posture: "engage", enteredAt: 20, pendingPosture: "peace", pendingSince: 50 };
+    const log = vi.fn();
+
+    runColony({
+      game: { time: 75, rooms: { W1N1: createRoom() }, creeps: {} },
+      memory,
+      constants,
+      log,
+      cpu: { getUsed: () => 1, bucket: 10000 },
+      config: { statusLogInterval: 0 }
+    });
+
+    expect(memory.defense).toEqual({ posture: "peace", enteredAt: 75 });
+    const defenseLogs = log.mock.calls
+      .map(([message]) => message)
+      .filter((message) => String(message).includes("defense"));
+    expect(defenseLogs).toEqual(["[colony W1N1] defense ENGAGE -> PEACE"]);
+  });
+
+  test("returning to the persisted posture clears pending disengagement without logging", () => {
+    const memory = createInitialColonyMemory("W1N1", 1, 1);
+    memory.defense = { posture: "engage", enteredAt: 20, pendingPosture: "peace", pendingSince: 50 };
+    const log = vi.fn();
+
+    runColony({
+      game: { time: 60, rooms: { W1N1: createRoom({ hostiles: [createHostile("hostile-attack", [{ type: "attack" }])] }) }, creeps: {} },
+      memory,
+      constants,
+      log,
+      cpu: { getUsed: () => 1, bucket: 10000 },
+      config: { statusLogInterval: 0 }
+    });
+
+    expect(memory.defense).toEqual({ posture: "engage", enteredAt: 20 });
+    expect(log).not.toHaveBeenCalledWith(expect.stringContaining("defense"));
+  });
+
+  test("escalating while de-escalation is pending clears pending state and logs", () => {
+    const memory = createInitialColonyMemory("W1N1", 1, 1);
+    memory.defense = { posture: "alert", enteredAt: 20, pendingPosture: "peace", pendingSince: 50 };
+    const log = vi.fn();
+
+    runColony({
+      game: { time: 60, rooms: { W1N1: createRoom({ hostiles: [createHostile("hostile-attack", [{ type: "attack" }])] }) }, creeps: {} },
+      memory,
+      constants,
+      log,
+      cpu: { getUsed: () => 1, bucket: 10000 },
+      config: { statusLogInterval: 0 }
+    });
+
+    expect(memory.defense).toEqual({ posture: "engage", enteredAt: 60 });
+    expect(log).toHaveBeenCalledWith("[colony W1N1] defense ALERT -> ENGAGE");
+  });
+
+  test("changing to a different lower pending posture resets pendingSince", () => {
+    const memory = createInitialColonyMemory("W1N1", 1, 1);
+    memory.defense = { posture: "engage", enteredAt: 20, pendingPosture: "alert", pendingSince: 50 };
+
+    runColony({
+      game: { time: 60, rooms: { W1N1: createRoom() }, creeps: {} },
+      memory,
+      constants,
+      log: vi.fn(),
+      cpu: { getUsed: () => 1, bucket: 10000 },
+      config: { statusLogInterval: 0 }
+    });
+
+    expect(memory.defense).toEqual({
+      posture: "engage",
+      enteredAt: 20,
+      pendingPosture: "peace",
+      pendingSince: 60
+    });
+  });
+
+  test("colony status shows persisted posture while de-escalation is pending", () => {
+    const memory = createInitialColonyMemory("W1N1", 2, 1);
+    memory.defense = { posture: "engage", enteredAt: 20 };
+    memory.lastPlanTick = 1;
+    memory.workforceTarget = 0;
+    const log = vi.fn();
+
+    runColony({
+      game: { time: 50, rooms: { W1N1: createRoom({ rcl: 2 }) }, creeps: {} },
+      memory,
+      constants,
+      log,
+      cpu: { getUsed: () => 1, bucket: 10000 },
+      config: { statusLogInterval: 10, planningCadence: 100 }
+    });
+
+    expect(memory.defense).toMatchObject({ posture: "engage", pendingPosture: "peace", pendingSince: 50 });
+    expect(log).toHaveBeenCalledWith(expect.stringContaining("status:"));
+    expect(log).toHaveBeenCalledWith(expect.stringContaining("defense ENGAGE threat NONE"));
   });
 
   test("defense memory updates preserve unrelated colony memory", () => {
@@ -665,7 +829,12 @@ describe("colony defense coordination", () => {
     });
 
     expect(rootMemory.colonies.W1N1.defense).toEqual({ posture: "peace", enteredAt: 10 });
-    expect(rootMemory.colonies.W2N2.defense).toEqual({ posture: "alert", enteredAt: 48 });
+    expect(rootMemory.colonies.W2N2.defense).toEqual({
+      posture: "engage",
+      enteredAt: 11,
+      pendingPosture: "alert",
+      pendingSince: 48
+    });
   });
 });
 
@@ -2977,6 +3146,34 @@ describe("memory, console API, and observability", () => {
     expect(memory).toEqual(expect.objectContaining({
       config: { visualsEnabled: true }
     }));
+  });
+
+  test("defense pending migration preserves complete timers and clears partial timers", () => {
+    const memory = {
+      schemaVersion: 3,
+      migration: { applied: [1, 2, 3] },
+      data: {},
+      colonies: {
+        W1N1: {
+          ...createInitialColonyMemory("W1N1", 2, 3),
+          defense: { posture: "engage" as const, enteredAt: 10, pendingPosture: "peace" as const, pendingSince: 20 }
+        },
+        W2N2: {
+          ...createInitialColonyMemory("W2N2", 2, 3),
+          defense: { posture: "alert" as const, enteredAt: 11, pendingPosture: "peace" as const }
+        }
+      }
+    };
+
+    migrateMemory(memory);
+
+    expect(memory.colonies.W1N1.defense).toEqual({
+      posture: "engage",
+      enteredAt: 10,
+      pendingPosture: "peace",
+      pendingSince: 20
+    });
+    expect(memory.colonies.W2N2.defense).toEqual({ posture: "alert", enteredAt: 11 });
   });
 
   test("safe console API reports status and toggles visuals without reset commands", () => {

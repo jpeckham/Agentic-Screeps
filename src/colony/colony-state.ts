@@ -20,6 +20,8 @@ export interface ColonyCreepMemory {
 export interface ColonyDefenseMemory {
   posture: DefensivePosture;
   enteredAt: number;
+  pendingPosture?: DefensivePosture;
+  pendingSince?: number;
 }
 
 export interface ColonyMemory {

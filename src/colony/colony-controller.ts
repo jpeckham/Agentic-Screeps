@@ -19,6 +19,8 @@ import { selectColonyStrategy } from "./strategy.js";
 import { decideDefensePosture } from "./defense-coordinator.js";
 import { createColonyStatus, formatColonyStatusLog, type ColonyStatus } from "./colony-status.js";
 
+export const DEFENSE_DISENGAGE_DELAY_TICKS = 25;
+
 export interface ColonyGame {
   time: number;
   rooms: Record<string, AnyRoom>;
@@ -282,11 +284,34 @@ function updateDefenseMemory(
     memory.defense = { posture, enteredAt: tick };
     return memory.defense;
   }
-  if (previous.posture === posture) return previous;
+  if (previous.posture === posture) {
+    clearPendingDefense(previous);
+    return previous;
+  }
+
+  if (postureRank(posture) < postureRank(previous.posture)) {
+    if (previous.pendingPosture !== posture || previous.pendingSince === undefined) {
+      previous.pendingPosture = posture;
+      previous.pendingSince = tick;
+      return previous;
+    }
+    if (tick - previous.pendingSince < DEFENSE_DISENGAGE_DELAY_TICKS) return previous;
+  }
 
   memory.defense = { posture, enteredAt: tick };
   log(`[colony ${memory.roomName}] defense ${previous.posture.toUpperCase()} -> ${posture.toUpperCase()}`);
   return memory.defense;
+}
+
+function postureRank(posture: NonNullable<ColonyMemory["defense"]>["posture"]): number {
+  if (posture === "peace") return 0;
+  if (posture === "alert") return 1;
+  return 2;
+}
+
+function clearPendingDefense(defense: NonNullable<ColonyMemory["defense"]>): void {
+  delete defense.pendingPosture;
+  delete defense.pendingSince;
 }
 
 function spawnFromPlan(
