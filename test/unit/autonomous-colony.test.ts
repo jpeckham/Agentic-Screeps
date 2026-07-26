@@ -1341,6 +1341,17 @@ describe("colony execution", () => {
 });
 
 describe("construction and tower policy", () => {
+  test("does not place construction at RCL1", () => {
+    const room = createRoom({ rcl: 1, structures: [createSpawn()] });
+
+    expect(planConstruction(
+      createColonySnapshot(room, constants),
+      createInitialColonyMemory("W1N1", 1, 1),
+      constants,
+      1
+    )).toBeUndefined();
+  });
+
   test("plans extensions at RCL2 and tower at RCL3 incrementally without duplicates", () => {
     const rcl2Room = createRoom({ rcl: 2, structures: [createSpawn()] });
     expect(planConstruction(createColonySnapshot(rcl2Room, constants), createInitialColonyMemory("W1N1", 2, 1), constants, 1))
@@ -1349,6 +1360,37 @@ describe("construction and tower policy", () => {
     const rcl3Room = createRoom({ rcl: 3, structures: [createSpawn()] });
     expect(planConstruction(createColonySnapshot(rcl3Room, constants), createInitialColonyMemory("W1N1", 3, 1), constants, 10))
       .toEqual(expect.objectContaining({ structureType: "tower" }));
+  });
+
+  test("does not exceed RCL2 extension limit or plan unavailable infrastructure", () => {
+    const extensions = Array.from({ length: 5 }, (_, index) => ({
+      ...createEnergyStructure(constants.STRUCTURE_EXTENSION, 50, 50),
+      id: `extension-${index}`
+    }));
+    const room = createRoom({ rcl: 2, structures: [createSpawn(), ...extensions] });
+
+    expect(planConstruction(
+      createColonySnapshot(room, constants),
+      createInitialColonyMemory("W1N1", 2, 1),
+      constants,
+      1
+    )).toBeUndefined();
+  });
+
+  test("plans additional RCL3 extensions up to the RCL3 limit", () => {
+    const extensions = Array.from({ length: 5 }, (_, index) => ({
+      ...createEnergyStructure(constants.STRUCTURE_EXTENSION, 50, 50),
+      id: `extension-${index}`
+    }));
+    const tower = createEnergyStructure(constants.STRUCTURE_TOWER, 500, 1000);
+    const room = createRoom({ rcl: 3, structures: [createSpawn(), tower, ...extensions] });
+
+    expect(planConstruction(
+      createColonySnapshot(room, constants),
+      createInitialColonyMemory("W1N1", 3, 1),
+      constants,
+      1
+    )).toEqual(expect.objectContaining({ structureType: "extension" }));
   });
 
   test("does not place construction on duplicate occupied positions or walls", () => {
@@ -1404,6 +1446,44 @@ describe("construction and tower policy", () => {
 
     expect(plan).toEqual(expect.objectContaining({ structureType: "extension" }));
     expect(plan).not.toEqual(expect.objectContaining({ x: 22, y: 20 }));
+  });
+
+  test("does not consume the last open spawn access tile", () => {
+    const spawn = createSpawn();
+    spawn.pos = createPos(20, 20);
+    const room = createRoom({
+      rcl: 2,
+      structures: [spawn],
+      terrainWalls: ["19,19", "20,19", "21,19", "19,20", "21,20", "19,21", "21,21"]
+    });
+
+    const plan = planConstruction(
+      createColonySnapshot(room, constants),
+      createInitialColonyMemory("W1N1", 2, 1),
+      constants,
+      1
+    );
+
+    expect(plan).toEqual(expect.objectContaining({ structureType: "extension" }));
+    expect(plan).not.toEqual(expect.objectContaining({ x: 20, y: 21 }));
+  });
+
+  test("does not consume the last open controller access tile", () => {
+    const room = createRoom({
+      rcl: 2,
+      structures: [createSpawn()],
+      terrainWalls: ["24,24", "25,24", "26,24", "24,25", "26,25", "24,26", "26,26"]
+    });
+
+    const plan = planConstruction(
+      createColonySnapshot(room, constants),
+      createInitialColonyMemory("W1N1", 2, 1),
+      constants,
+      1
+    );
+
+    expect(plan).toEqual(expect.objectContaining({ structureType: "extension" }));
+    expect(plan).not.toEqual(expect.objectContaining({ x: 25, y: 26 }));
   });
 
   test("does not place non-container construction on source access tiles", () => {
@@ -1539,8 +1619,16 @@ describe("construction and tower policy", () => {
       .toEqual(expect.objectContaining({ structureType: "container" }));
 
     const containers = [
-      createEnergyStructure(constants.STRUCTURE_CONTAINER, 0),
-      createEnergyStructure(constants.STRUCTURE_CONTAINER, 0)
+      {
+        ...createEnergyStructure(constants.STRUCTURE_CONTAINER, 0),
+        id: "container-source-a",
+        pos: createPos(10, 9)
+      },
+      {
+        ...createEnergyStructure(constants.STRUCTURE_CONTAINER, 0),
+        id: "container-source-b",
+        pos: createPos(40, 39)
+      }
     ];
     const earlyRcl4Room = createRoom({ rcl: 4, structures: [createSpawn(), tower, ...extensions, ...containers] });
     expect(planConstruction(createColonySnapshot(earlyRcl4Room, constants), createInitialColonyMemory("W1N1", 4, 1), constants, 1))
@@ -1552,6 +1640,21 @@ describe("construction and tower policy", () => {
     const rcl4Room = createRoom({ rcl: 4, structures: [createSpawn(), tower, ...rcl4Extensions, ...containers] });
     expect(planConstruction(createColonySnapshot(rcl4Room, constants), createInitialColonyMemory("W1N1", 4, 1), constants, 1))
       .toEqual(expect.objectContaining({ structureType: "storage" }));
+  });
+
+  test("does not plan RCL4 storage before source containers are present or planned", () => {
+    const extensions = Array.from({ length: 20 }, (_, index) =>
+      createEnergyStructure(constants.STRUCTURE_EXTENSION, 0, 50 + index)
+    );
+    const tower = createEnergyStructure(constants.STRUCTURE_TOWER, 500, 1000);
+    const room = createRoom({ rcl: 4, structures: [createSpawn(), tower, ...extensions] });
+
+    expect(planConstruction(
+      createColonySnapshot(room, constants),
+      createInitialColonyMemory("W1N1", 4, 1),
+      constants,
+      1
+    )).toEqual(expect.objectContaining({ structureType: "container" }));
   });
 
   test("places RCL3 source containers adjacent to an unserved source", () => {
@@ -1624,6 +1727,149 @@ describe("construction and tower policy", () => {
     runTower({ tower, hostiles: [], injuredFriendlies: [], repairTargets: [road, spawn], constants, reserve: 500 });
 
     expect(tower.repair).toHaveBeenCalledWith(spawn);
+  });
+
+  test("workers refill tower before noncritical construction", () => {
+    const worker = createWorker("worker-tower-before-build", 50);
+    const spawn = createSpawn(300);
+    const tower = createTower(100);
+    const containerSite = { id: "container-site", structureType: constants.STRUCTURE_CONTAINER, pos: createPos(22, 20) };
+    const room = createRoom({
+      rcl: 3,
+      structures: [spawn, tower],
+      creeps: [worker],
+      constructionSites: [containerSite]
+    });
+
+    runColony({
+      game: { time: 71, rooms: { W1N1: room }, creeps: { "worker-tower-before-build": worker } },
+      memory: createInitialColonyMemory("W1N1", 3, 71),
+      constants,
+      log: vi.fn(),
+      cpu: { getUsed: () => 1, bucket: 10000 },
+      config: { towerEnergyReserve: 500 }
+    });
+
+    expect(worker.transfer).toHaveBeenCalledWith(tower, "energy");
+    expect(worker.build).not.toHaveBeenCalled();
+  });
+
+  test("workers build extensions before lower-priority construction", () => {
+    const worker = createWorker("worker-extension-before-container", 50);
+    const spawn = createSpawn(300);
+    const extensionSite = { id: "extension-site", structureType: constants.STRUCTURE_EXTENSION, pos: createPos(22, 20) };
+    const containerSite = { id: "container-site", structureType: constants.STRUCTURE_CONTAINER, pos: createPos(23, 20) };
+    const room = createRoom({
+      rcl: 3,
+      structures: [spawn],
+      creeps: [worker],
+      constructionSites: [containerSite, extensionSite]
+    });
+
+    runColony({
+      game: { time: 72, rooms: { W1N1: room }, creeps: { "worker-extension-before-container": worker } },
+      memory: createInitialColonyMemory("W1N1", 3, 72),
+      constants,
+      log: vi.fn(),
+      cpu: { getUsed: () => 1, bucket: 10000 }
+    });
+
+    expect(worker.build).toHaveBeenCalledWith(extensionSite);
+    expect(worker.build).not.toHaveBeenCalledWith(containerSite);
+  });
+
+  test("workers clear completed build assignments and choose current sites", () => {
+    const worker = createWorker("worker-stale-build", 50);
+    worker.memory.assignment = { type: "build", targetId: "completed-site" };
+    const spawn = createSpawn(300);
+    const extensionSite = { id: "extension-site-current", structureType: constants.STRUCTURE_EXTENSION, pos: createPos(22, 20) };
+    const room = createRoom({
+      rcl: 2,
+      structures: [spawn],
+      creeps: [worker],
+      constructionSites: [extensionSite]
+    });
+
+    runColony({
+      game: { time: 73, rooms: { W1N1: room }, creeps: { "worker-stale-build": worker } },
+      memory: createInitialColonyMemory("W1N1", 2, 73),
+      constants,
+      log: vi.fn(),
+      cpu: { getUsed: () => 1, bucket: 10000 }
+    });
+
+    expect(worker.build).toHaveBeenCalledWith(extensionSite);
+    expect(worker.memory.assignment).toEqual({ type: "build", targetId: "extension-site-current" });
+  });
+
+  test("tower does not repair walls or ramparts", () => {
+    const wall = { id: "wall", structureType: "constructedWall", hits: 100, hitsMax: 10000 };
+    const rampart = { id: "rampart", structureType: "rampart", hits: 100, hitsMax: 10000 };
+    const tower = {
+      store: { getUsedCapacity: vi.fn(() => 900) },
+      attack: vi.fn(),
+      heal: vi.fn(),
+      repair: vi.fn()
+    };
+
+    runTower({ tower, hostiles: [], injuredFriendlies: [], repairTargets: [wall, rampart], constants, reserve: 500 });
+
+    expect(tower.repair).not.toHaveBeenCalled();
+  });
+
+  test("low CPU bucket suppresses construction planning and visuals but still runs workers", () => {
+    const worker = createWorker("worker-low-cpu", 0);
+    const room = Object.assign(createRoom({ rcl: 2, structures: [createSpawn()], creeps: [worker] }), {
+      createConstructionSite: vi.fn(() => constants.OK)
+    });
+
+    runColony({
+      game: { time: 70, rooms: { W1N1: room }, creeps: { "worker-low-cpu": worker } },
+      memory: createInitialColonyMemory("W1N1", 2, 70),
+      constants,
+      log: vi.fn(),
+      cpu: { getUsed: () => 1, bucket: 100 },
+      config: { lowCpuBucket: 2000 }
+    });
+
+    expect(room.createConstructionSite).not.toHaveBeenCalled();
+    expect(room.visual.text).not.toHaveBeenCalled();
+    expect(worker.harvest).toHaveBeenCalled();
+  });
+
+  test("construction plan memory survives reset-like owned-room execution", () => {
+    const worker = createWorker("worker-construction-memory", 50);
+    const room = createRoom({ rcl: 3, structures: [createSpawn()], creeps: [worker] });
+    const colonyMemory = createInitialColonyMemory("W1N1", 3, 1);
+    colonyMemory.lastConstructionPlan = {
+      tick: 10,
+      rcl: 2,
+      structureType: constants.STRUCTURE_EXTENSION,
+      x: 22,
+      y: 20
+    };
+    const memory = {
+      colonies: { W1N1: colonyMemory },
+      unrelated: { keep: true }
+    };
+
+    runOwnedColonies({
+      game: { time: 80, rooms: { W1N1: room }, creeps: { "worker-construction-memory": worker } },
+      memory,
+      constants,
+      log: vi.fn(),
+      cpu: { getUsed: () => 1, bucket: 10000 },
+      config: { planningCadence: 100 }
+    });
+
+    expect(memory.colonies.W1N1.lastConstructionPlan).toEqual({
+      tick: 10,
+      rcl: 2,
+      structureType: constants.STRUCTURE_EXTENSION,
+      x: 22,
+      y: 20
+    });
+    expect(memory.unrelated).toEqual({ keep: true });
   });
 
   test("colony snapshot passes injured friendly creeps to towers", () => {

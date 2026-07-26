@@ -34,9 +34,12 @@ export function runTower(options: {
   }
 
   const energy = options.tower.store?.getUsedCapacity(options.constants.RESOURCE_ENERGY) ?? 0;
-  const repairTarget = [...options.repairTargets].sort(
-    (left, right) => repairPriority(left) - repairPriority(right)
-  )[0];
+  const repairTarget = [...options.repairTargets]
+    .filter((target) => {
+      const structureType = (target as RepairTarget | undefined)?.structureType;
+      return structureType !== "constructedWall" && structureType !== "rampart";
+    })
+    .sort((left, right) => repairPriority(left) - repairPriority(right))[0];
   if (repairTarget && energy > options.reserve) {
     options.tower.repair(repairTarget);
   }

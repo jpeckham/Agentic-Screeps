@@ -70,6 +70,7 @@ function desiredStructure(
       if (extensions < target) return structureType;
     }
     if (kind === "storage" && snapshot.rcl >= 4) {
+      if (sourceNeedingContainer(snapshot, constants)) continue;
       const storageCount = countStructuresAndSites(snapshot, constants.STRUCTURE_STORAGE);
       if (storageCount < 1) return structureType;
     }
