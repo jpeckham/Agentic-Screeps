@@ -658,6 +658,30 @@ describe("colony execution", () => {
     expect(worker.build).not.toHaveBeenCalled();
   });
 
+  test("continues valid upgrade assignment even when build crew drops below target", () => {
+    const worker = createWorker("worker-sticky-upgrade-solo", 50);
+    worker.memory.assignment = { type: "upgrade", targetId: "controller" };
+    const builder = createWorker("worker-builder-1", 50);
+    builder.memory.assignment = { type: "build", targetId: "extension-site-1" };
+    const harvester = createWorker("worker-harvester-1", 0);
+    harvester.memory.assignment = { type: "harvest", sourceId: "source-1" };
+    const extensionSites = [
+      { id: "extension-site-1", structureType: constants.STRUCTURE_EXTENSION, pos: createPos(22, 20) },
+      { id: "extension-site-2", structureType: constants.STRUCTURE_EXTENSION, pos: createPos(23, 20) }
+    ];
+    const room = createRoom({
+      rcl: 2,
+      structures: [createSpawn(300)],
+      creeps: [worker, builder, harvester],
+      constructionSites: extensionSites
+    });
+
+    runWorker(worker, createColonySnapshot(room, constants), constants);
+
+    expect(worker.upgradeController).toHaveBeenCalledWith(room.controller);
+    expect(worker.build).not.toHaveBeenCalled();
+  });
+
   test("moves toward harvest, refill, and upgrade targets when out of range", () => {
     const harvester = createWorker("worker-harvest", 0);
     harvester.harvest.mockReturnValue(constants.ERR_NOT_IN_RANGE);

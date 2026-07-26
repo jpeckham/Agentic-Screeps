@@ -112,8 +112,7 @@ function performWork(
     memory.assignment?.type === "upgrade" &&
     snapshot.controller &&
     creep.upgradeController &&
-    canSpendWorkEnergy(creep, constants) &&
-    (!criticalBuild || criticalBuildBuilderCount(snapshot, criticalBuild) >= 2)
+    canSpendWorkEnergy(creep, constants)
   ) {
     memory.assignment = { type: "upgrade", ...(snapshot.controller.id ? { targetId: snapshot.controller.id } : {}) };
     actOrMove(creep, snapshot.controller, creep.upgradeController(snapshot.controller), constants);
