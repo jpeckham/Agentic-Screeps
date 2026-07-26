@@ -15,6 +15,7 @@ import { planConstruction, removeSourceBlockingConstruction } from "../construct
 import { runTower } from "../structures/tower-controller.js";
 import type { TowerLike } from "../structures/tower-controller.js";
 import { drawRoomStatusVisual } from "../visualization/room-status-visual.js";
+import { selectColonyStrategy } from "./strategy.js";
 
 export interface ColonyGame {
   time: number;
@@ -64,7 +65,12 @@ export function runColony(options: ColonyRunOptions): void {
   const cpuStart = options.cpu.getUsed();
 
   logLifecycle(memory, snapshot.rcl, options.game.time, options.log);
-  runTowers(snapshot, options.constants, config);
+  const strategy = selectColonyStrategy(snapshot, {
+    controllerEmergencyThreshold: config.controllerEmergencyThreshold,
+    towerEnergyReserve: config.towerEnergyReserve
+  });
+  updateStrategy(memory, strategy.name, options.log);
+  runTowers(snapshot, options.constants, config, strategy.worker.towerEnergyReserve);
 
   const viableWorkers = snapshot.workers.filter((creep) =>
     hasWorkAndCarry(creep) && (creep.ticksToLive ?? 1500) > config.emergencyTtlThreshold
@@ -89,7 +95,8 @@ export function runColony(options: ColonyRunOptions): void {
     workerCount: viableWorkers.length,
     replacementCount,
     expiringWorkerCount: expiringWorkers.length,
-    constructionSiteCount: snapshot.constructionSites.length
+    constructionSiteCount: snapshot.constructionSites.length,
+    strategy: strategy.workforce
   });
   updateWorkforceTarget(memory, plan.desiredWorkers, options.log);
   updateEmergencyState(memory, plan.emergency, viableWorkers.length === 0 ? "no viable workers" : "critical workers expiring", options.log);
@@ -117,7 +124,9 @@ export function runColony(options: ColonyRunOptions): void {
         repairThreshold: config.repairThreshold,
         roadRepairThreshold: config.roadRepairThreshold,
         wallStarterThreshold: config.wallStarterThreshold,
-        towerEnergyReserve: config.towerEnergyReserve
+        towerEnergyReserve: strategy.worker.towerEnergyReserve,
+        maxExtensionBuilders: strategy.worker.maxExtensionBuilders,
+        maxTowerBuilders: strategy.worker.maxTowerBuilders
       });
     } catch (error) {
       options.log(`[colony ${memory.roomName}] creep ${creep.name} failed: ${error instanceof Error ? error.message : String(error)}`);
@@ -135,7 +144,8 @@ export function runColony(options: ColonyRunOptions): void {
         memory,
         options.constants,
         options.game.time,
-        config.planningCadence
+        config.planningCadence,
+        strategy.construction
       );
       if (construction && typeof room["createConstructionSite" as keyof AnyRoom] === "function") {
         const result = (room as AnyRoom & { createConstructionSite(x: number, y: number, type: string): number })
@@ -187,7 +197,8 @@ function logLifecycle(
 function runTowers(
   snapshot: ReturnType<typeof createColonySnapshot>,
   constants: SnapshotConstants,
-  config: ColonyConfig
+  config: ColonyConfig,
+  towerEnergyReserve = config.towerEnergyReserve
 ): void {
   const repairTargets = snapshot.damagedStructures.filter((structure) =>
     structure.structureType !== "constructedWall" && structure.structureType !== "rampart"
@@ -200,9 +211,20 @@ function runTowers(
         injuredFriendlies: snapshot.injuredFriendlies,
         repairTargets,
         constants,
-        reserve: config.towerEnergyReserve
+        reserve: towerEnergyReserve
       });
     }
+  }
+}
+
+function updateStrategy(
+  memory: ColonyMemory,
+  strategyName: string,
+  log: (message: string) => void
+): void {
+  if (memory.strategy !== strategyName) {
+    memory.strategy = strategyName;
+    log(`[colony ${memory.roomName}] strategy selected: ${strategyName}`);
   }
 }
 

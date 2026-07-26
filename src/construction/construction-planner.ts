@@ -1,6 +1,7 @@
 import type { ColonySnapshot } from "../colony/colony-snapshot.js";
 import type { ColonyMemory } from "../colony/colony-state.js";
 import type { SnapshotConstants } from "../colony/colony-snapshot.js";
+import type { ConstructionKind, ConstructionStrategy } from "../colony/strategy.js";
 
 export interface ConstructionPlan {
   structureType: string;
@@ -32,7 +33,8 @@ export function planConstruction(
   memory: ColonyMemory,
   constants: SnapshotConstants,
   tick: number,
-  cadence = 10
+  cadence = 10,
+  strategy?: ConstructionStrategy
 ): ConstructionPlan | undefined {
   if (!memory.forceReplan && memory.lastPlanTick > 0 && tick - memory.lastPlanTick < cadence) {
     return undefined;
@@ -40,7 +42,7 @@ export function planConstruction(
   memory.lastPlanTick = tick;
   memory.forceReplan = false;
 
-  const desired = desiredStructure(snapshot, constants);
+  const desired = desiredStructure(snapshot, constants, strategy);
   if (!desired) return undefined;
   if (hasStructureOrSite(snapshot, desired, constants)) return undefined;
 
@@ -51,23 +53,30 @@ export function planConstruction(
   return plan;
 }
 
-function desiredStructure(snapshot: ColonySnapshot, constants: SnapshotConstants): string | undefined {
-  if (snapshot.rcl >= 3) {
-    const towers = snapshot.towers.length + snapshot.constructionSites.filter((site) => site.structureType === constants.STRUCTURE_TOWER).length;
-    if (towers < 1) return constants.STRUCTURE_TOWER;
-  }
-  if (snapshot.rcl >= 2) {
-    const extensions = snapshot.extensions.length + snapshot.constructionSites.filter((site) => site.structureType === constants.STRUCTURE_EXTENSION).length;
-    const target = extensionTarget(snapshot.rcl);
-    if (extensions < target) return constants.STRUCTURE_EXTENSION;
-  }
-  if (snapshot.rcl >= 4) {
-    const storageCount = countStructuresAndSites(snapshot, constants.STRUCTURE_STORAGE);
-    if (storageCount < 1) return constants.STRUCTURE_STORAGE;
-  }
-  if (snapshot.rcl >= 3) {
-    const containerCount = countStructuresAndSites(snapshot, constants.STRUCTURE_CONTAINER);
-    if (containerCount < Math.max(1, snapshot.sources.length)) return constants.STRUCTURE_CONTAINER;
+function desiredStructure(
+  snapshot: ColonySnapshot,
+  constants: SnapshotConstants,
+  strategy?: ConstructionStrategy
+): string | undefined {
+  for (const kind of strategy?.priority ?? ["tower", "extension", "storage", "container"]) {
+    const structureType = structureTypeForKind(kind, constants);
+    if (kind === "tower" && snapshot.rcl >= 3) {
+      const towers = snapshot.towers.length + snapshot.constructionSites.filter((site) => site.structureType === constants.STRUCTURE_TOWER).length;
+      if (towers < 1) return structureType;
+    }
+    if (kind === "extension" && snapshot.rcl >= 2) {
+      const extensions = snapshot.extensions.length + snapshot.constructionSites.filter((site) => site.structureType === constants.STRUCTURE_EXTENSION).length;
+      const target = extensionTarget(snapshot.rcl, strategy);
+      if (extensions < target) return structureType;
+    }
+    if (kind === "storage" && snapshot.rcl >= 4) {
+      const storageCount = countStructuresAndSites(snapshot, constants.STRUCTURE_STORAGE);
+      if (storageCount < 1) return structureType;
+    }
+    if (kind === "container" && snapshot.rcl >= 3) {
+      const containerCount = countStructuresAndSites(snapshot, constants.STRUCTURE_CONTAINER);
+      if (containerCount < Math.max(1, snapshot.sources.length)) return structureType;
+    }
   }
   return undefined;
 }
@@ -88,10 +97,17 @@ function countStructuresAndSites(snapshot: ColonySnapshot, structureType: string
   return structureCount + siteCount;
 }
 
-function extensionTarget(rcl: number): number {
-  if (rcl >= 4) return 20;
-  if (rcl >= 3) return 10;
-  return 5;
+function extensionTarget(rcl: number, strategy?: ConstructionStrategy): number {
+  if (rcl >= 4) return strategy?.extensionTargets.rcl4 ?? 20;
+  if (rcl >= 3) return strategy?.extensionTargets.rcl3 ?? 10;
+  return strategy?.extensionTargets.rcl2 ?? 5;
+}
+
+function structureTypeForKind(kind: ConstructionKind, constants: SnapshotConstants): string {
+  if (kind === "tower") return constants.STRUCTURE_TOWER;
+  if (kind === "storage") return constants.STRUCTURE_STORAGE;
+  if (kind === "container") return constants.STRUCTURE_CONTAINER;
+  return constants.STRUCTURE_EXTENSION;
 }
 
 function constructionOrigin(

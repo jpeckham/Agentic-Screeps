@@ -14,6 +14,8 @@ export interface WorkerPriorityConfig {
   roadRepairThreshold: number;
   wallStarterThreshold: number;
   towerEnergyReserve: number;
+  maxExtensionBuilders?: number;
+  maxTowerBuilders?: number;
 }
 
 const DEFAULT_WORKER_PRIORITY_CONFIG: WorkerPriorityConfig = {
@@ -121,7 +123,7 @@ function performWork(
 
   if (
     criticalBuild &&
-    criticalBuildSaturated(snapshot, constants, criticalBuild) &&
+    criticalBuildSaturated(snapshot, constants, criticalBuild, config) &&
     snapshot.controller &&
     creep.upgradeController &&
     canSpendWorkEnergy(creep, constants)
@@ -285,9 +287,10 @@ function findBuildTarget(
 function criticalBuildSaturated(
   snapshot: ColonySnapshot,
   constants: SnapshotConstants,
-  criticalBuild: AnyConstructionSite
+  criticalBuild: AnyConstructionSite,
+  config: WorkerPriorityConfig
 ): boolean {
-  const builderLimit = criticalBuildBuilderLimit(snapshot, constants, criticalBuild);
+  const builderLimit = criticalBuildBuilderLimit(snapshot, constants, criticalBuild, config);
   const builders = criticalBuildBuilderCount(snapshot, criticalBuild);
   return builders >= builderLimit;
 }
@@ -322,10 +325,13 @@ function criticalBuildBuilderCount(
 function criticalBuildBuilderLimit(
   snapshot: ColonySnapshot,
   constants: SnapshotConstants,
-  criticalBuild: AnyConstructionSite
+  criticalBuild: AnyConstructionSite,
+  config: WorkerPriorityConfig
 ): number {
-  if (criticalBuild.structureType === constants.STRUCTURE_TOWER) return 3;
-  if (criticalBuild.structureType === constants.STRUCTURE_EXTENSION && snapshot.workers.length >= 5) return 3;
+  if (criticalBuild.structureType === constants.STRUCTURE_TOWER) return config.maxTowerBuilders ?? 3;
+  if (criticalBuild.structureType === constants.STRUCTURE_EXTENSION && snapshot.workers.length >= 5) {
+    return config.maxExtensionBuilders ?? 3;
+  }
   return 2;
 }
 

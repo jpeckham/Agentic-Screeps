@@ -12,12 +12,42 @@ fallback behavior.
   survival fallback.
 - `src/colony` owns room snapshots, durable colony state, console API, and the
   colony controller.
+- `src/colony/strategy.ts` selects a context-specific colony strategy from the
+  tick-local snapshot. The selected strategy supplies workforce sizing,
+  construction priorities, worker builder limits, tower reserve policy, and the
+  controller downgrade threshold used by workers.
 - `src/workforce` owns workforce target selection and balanced worker body
-  construction.
+  construction. Workforce sizing consumes the active strategy instead of using a
+  single global heuristic.
 - `src/creeps` owns worker mode transitions and deterministic work priorities.
-- `src/construction` owns incremental early construction planning.
+- `src/construction` owns incremental early construction planning. Construction
+  order and extension targets are strategy inputs.
 - `src/structures` owns tower priorities.
 - `src/visualization` owns compact room status visuals.
+
+## Strategy Profiles
+
+The current runtime keeps emergency handling as a hard override, then chooses a
+named strategy for normal colony execution:
+
+- `emergency-recovery`: no workers are available; keep spawning minimal and
+  suppress nonessential construction pressure.
+- `bootstrap`: RCL 1 with workers; keep the workforce small and prioritize
+  survival plus controller progress.
+- `balanced-early`: default RCL 2/RCL 3 early-room behavior.
+- `infrastructure-push`: RCL 2 with meaningful extension construction demand;
+  allows a larger workforce and more extension builders while still preserving
+  controller progress.
+- `controller-recovery`: controller downgrade risk is elevated; caps build
+  pressure and shifts workers toward upgrading.
+- `defensive-rcl3`: RCL 3 without a tower; prioritizes tower planning and tower
+  completion.
+- `early-rcl4`: early RCL 4 stabilization; allows the largest early-room
+  workforce and continues incremental infrastructure.
+
+Strategy changes are logged as `[colony W1N1] strategy selected: <name>` and the
+latest selected strategy is stored in colony memory as a small string. Strategy
+state is advisory and safe to recompute; no live Screeps objects are persisted.
 
 ## Configuration
 
@@ -47,6 +77,8 @@ colony for construction replanning.
 - Spawns a `[WORK,CARRY,MOVE]` emergency worker when no viable workers exist and
   at least 200 energy is available.
 - Maintains a bounded general worker workforce by RCL/source/construction demand.
+- Selects an explicit colony strategy from current context instead of relying on
+  one hardcoded room heuristic.
 - Treats low-TTL workers as replacement demand.
 - Workers acquire energy from containers/storage when available, otherwise from
   sources.
@@ -66,6 +98,8 @@ colony for construction replanning.
 - Console status telemetry is interval-gated by `statusLogInterval` and records
   RCL, mode, energy, worker counts, assignment counts, construction site count,
   and CPU without logging every tick.
+- Console lifecycle telemetry logs strategy transitions without logging every
+  tick.
 - Deterministic integration-style tests cover Scenario A through Scenario E from
   the implementation prompt: fresh RCL 1 bootstrap, total workforce death,
   RCL 2 transition, RCL 3 transition, and expiring worker replacement.

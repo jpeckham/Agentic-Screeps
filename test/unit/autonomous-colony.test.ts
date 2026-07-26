@@ -5,6 +5,7 @@ import { planWorkforce } from "../../src/workforce/workforce-planner.js";
 import { runColony, runOwnedColonies } from "../../src/colony/colony-controller.js";
 import { createColonySnapshot } from "../../src/colony/colony-snapshot.js";
 import { createInitialColonyMemory } from "../../src/colony/colony-state.js";
+import { selectColonyStrategy } from "../../src/colony/strategy.js";
 import { runWorker } from "../../src/creeps/creep-runner.js";
 import { planConstruction } from "../../src/construction/construction-planner.js";
 import { runTower } from "../../src/structures/tower-controller.js";
@@ -202,6 +203,80 @@ describe("workforce planning", () => {
 
     expect(plan.desiredWorkers).toBeLessThanOrEqual(6);
     expect(plan.spawnRequest).toBeUndefined();
+  });
+});
+
+describe("colony strategy selection", () => {
+  test("selects explicit strategies from room context", () => {
+    const worker = createWorker("worker-1", 0);
+
+    expect(selectColonyStrategy(createColonySnapshot(createRoom({ creeps: [] }), constants)).name)
+      .toBe("emergency-recovery");
+
+    expect(selectColonyStrategy(createColonySnapshot(createRoom({ rcl: 1, creeps: [worker] }), constants)).name)
+      .toBe("bootstrap");
+
+    const extensionSites = Array.from({ length: 4 }, (_, index) => ({
+      id: `extension-site-${index}`,
+      structureType: constants.STRUCTURE_EXTENSION,
+      pos: createPos(22 + index, 20)
+    }));
+    expect(selectColonyStrategy(createColonySnapshot(createRoom({
+      rcl: 2,
+      creeps: [worker],
+      constructionSites: extensionSites
+    }), constants)).name).toBe("infrastructure-push");
+
+    const controllerRiskRoom = createRoom({ rcl: 2, creeps: [worker], constructionSites: extensionSites });
+    controllerRiskRoom.controller.ticksToDowngrade = 3000;
+    expect(selectColonyStrategy(createColonySnapshot(controllerRiskRoom, constants)).name)
+      .toBe("controller-recovery");
+
+    expect(selectColonyStrategy(createColonySnapshot(createRoom({ rcl: 3, creeps: [worker] }), constants)).name)
+      .toBe("defensive-rcl3");
+
+    expect(selectColonyStrategy(createColonySnapshot(createRoom({ rcl: 4, creeps: [worker] }), constants)).name)
+      .toBe("early-rcl4");
+  });
+
+  test("logs strategy changes and applies strategy workforce policy", () => {
+    const log = vi.fn();
+    const workers = [
+      createWorker("worker-1", 50),
+      createWorker("worker-2", 50),
+      createWorker("worker-3", 0),
+      createWorker("worker-4", 0)
+    ];
+    const extensionSites = Array.from({ length: 4 }, (_, index) => ({
+      id: `extension-site-${index}`,
+      structureType: constants.STRUCTURE_EXTENSION,
+      pos: createPos(22 + index, 20)
+    }));
+    const spawn = createSpawn(550);
+    const room = createRoom({
+      rcl: 2,
+      energyAvailable: 550,
+      energyCapacityAvailable: 550,
+      structures: [spawn],
+      creeps: workers,
+      constructionSites: extensionSites
+    });
+    const memory = createInitialColonyMemory("W1N1", 2, 1);
+    memory.workforceTarget = 4;
+
+    runColony({
+      game: { time: 50, rooms: { W1N1: room }, creeps: Object.fromEntries(workers.map((worker) => [worker.name, worker])) },
+      memory,
+      constants,
+      log,
+      cpu: { getUsed: () => 1, bucket: 10000 },
+      config: { planningCadence: 100 }
+    });
+
+    expect(log).toHaveBeenCalledWith("[colony W1N1] strategy selected: infrastructure-push");
+    expect(log).toHaveBeenCalledWith("[colony W1N1] workforce target changed: 4 -> 5");
+    expect(memory.strategy).toBe("infrastructure-push");
+    expect(spawn.spawnCreep).toHaveBeenCalled();
   });
 });
 

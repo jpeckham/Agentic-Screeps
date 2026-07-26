@@ -25,6 +25,7 @@ export interface ColonyMemory {
   lastPlanTick: number;
   forceReplan?: boolean;
   workforceTarget: number;
+  strategy?: string;
   lastStatusLog?: number;
   lastConstructionPlan?: {
     tick: number;

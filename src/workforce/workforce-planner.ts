@@ -1,4 +1,5 @@
 import { buildWorkerBody } from "./body-builder.js";
+import type { WorkforceStrategy } from "../colony/strategy.js";
 
 export interface WorkforceInput {
   roomName: string;
@@ -10,6 +11,7 @@ export interface WorkforceInput {
   replacementCount: number;
   expiringWorkerCount: number;
   constructionSiteCount: number;
+  strategy?: WorkforceStrategy;
 }
 
 export interface SpawnRequest {
@@ -55,6 +57,12 @@ export function planWorkforce(input: WorkforceInput): WorkforcePlan {
 function desiredWorkerCount(input: WorkforceInput): number {
   const baseByRcl = input.rcl <= 1 ? 3 : input.rcl === 2 ? 4 : input.rcl === 3 ? 5 : 6;
   const sourceDemand = Math.max(2, input.sourceCount * 2);
-  const constructionBonus = input.constructionSiteCount >= 4 ? 1 : 0;
-  return Math.min(6, Math.max(baseByRcl, sourceDemand) + constructionBonus);
+  const strategy = input.strategy;
+  const minWorkers = strategy?.minWorkers ?? baseByRcl;
+  const maxWorkers = strategy?.maxWorkers ?? 6;
+  const constructionThreshold = strategy?.constructionSiteBonusThreshold ?? 4;
+  const constructionBonus = input.constructionSiteCount >= constructionThreshold
+    ? strategy?.constructionWorkerBonus ?? 1
+    : 0;
+  return Math.min(maxWorkers, Math.max(minWorkers, sourceDemand) + constructionBonus);
 }
