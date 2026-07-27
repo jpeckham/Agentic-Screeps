@@ -6,7 +6,7 @@ export default tseslint.config(
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {
-    ignores: ["dist/**", "build/**", "coverage/**", "node_modules/**", ".screeps-private/**", "test-results/**"]
+    ignores: ["dist/**", "build/**", "coverage/**", "node_modules/**", ".screeps-private/**", "test-results/**", ".tmp/**"]
   },
   {
     files: ["**/*.ts", "**/*.js", "**/*.mjs"],
