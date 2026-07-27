@@ -1,5 +1,9 @@
 import type { ReleaseState } from "../runtime/release-state.js";
-import type { ColonyMemory } from "../colony/colony-state.js";
+import type {
+  ColonyMemory,
+  DiagnosticScenarioMemory,
+  PrivateTestingDiagnosticMemory
+} from "../colony/colony-state.js";
 
 export interface MigrationMemory {
   applied: number[];
@@ -19,6 +23,7 @@ export interface RootMemory {
   config?: {
     visualsEnabled?: boolean;
     privateTestingEnabled?: boolean;
+    diagnostics?: DiagnosticScenarioMemory;
   };
   creeps?: Record<string, Record<string, unknown>>;
   testing?: {
@@ -36,5 +41,6 @@ export interface RootMemory {
         action: "attack" | "hold";
       };
     }>;
+    diagnostics?: PrivateTestingDiagnosticMemory;
   };
 }

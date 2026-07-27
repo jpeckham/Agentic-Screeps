@@ -100,7 +100,7 @@ function createSeedScript(config) {
     "  await storage.db['rooms.objects'].insert({ _id: plan.controller.id, type: 'controller', room: plan.roomName, x: plan.controller.x, y: plan.controller.y, user: user._id, level: plan.controller.level, progress: 0, progressTotal: 0 });",
     "  for (const source of plan.sources) await storage.db['rooms.objects'].insert({ _id: source.id, type: 'source', room: plan.roomName, x: source.x, y: source.y, energy: source.energy, energyCapacity: source.energy });",
     "  for (const structure of plan.structures) {",
-    "    const className = structure.type === 'spawn' ? 'StructureSpawn' : structure.type === 'tower' ? 'StructureTower' : 'StructureExtension';",
+    "    const className = structure.type === 'spawn' ? 'StructureSpawn' : structure.type === 'tower' ? 'StructureTower' : structure.type === 'container' ? 'StructureContainer' : 'StructureExtension';",
     "    await storage.db['rooms.objects'].insert({ _id: structure.id, type: structure.type, room: plan.roomName, x: structure.x, y: structure.y, user: user._id, energy: structure.energy, energyCapacity: structure.energyCapacity, name: structure.id, className });",
     "  }",
     "  await storage.db['rooms.terrain'].insert({ room: plan.roomName, terrain: '0'.repeat(2500), type: 'terrain' });",
@@ -126,7 +126,9 @@ function createSeedPlan(config) {
       { id: `${roomName}-extension-2`, type: "extension", x: 26, y: 24, energy: 50, energyCapacity: 50 },
       { id: `${roomName}-extension-3`, type: "extension", x: 24, y: 26, energy: 50, energyCapacity: 50 },
       { id: `${roomName}-extension-4`, type: "extension", x: 26, y: 26, energy: 50, energyCapacity: 50 },
-      { id: `${roomName}-extension-5`, type: "extension", x: 25, y: 27, energy: 50, energyCapacity: 50 }
+      { id: `${roomName}-extension-5`, type: "extension", x: 25, y: 27, energy: 50, energyCapacity: 50 },
+      { id: `${roomName}-container-source-1`, type: "container", x: 19, y: 22, energy: 0, energyCapacity: 2000 },
+      { id: `${roomName}-container-source-2`, type: "container", x: 33, y: 28, energy: 0, energyCapacity: 2000 }
     ]
   };
 }
@@ -289,8 +291,8 @@ function mutateSeed(db, config) {
       store: { energy: structure.energy },
       storeCapacityResource: { energy: structure.energyCapacity },
       name: structure.type === "spawn" ? "Spawn1" : structure.id,
-      hits: structure.type === "spawn" ? 5000 : structure.type === "tower" ? 3000 : 1000,
-      hitsMax: structure.type === "spawn" ? 5000 : structure.type === "tower" ? 3000 : 1000
+      hits: structure.type === "spawn" ? 5000 : structure.type === "tower" ? 3000 : structure.type === "container" ? 250000 : 1000,
+      hitsMax: structure.type === "spawn" ? 5000 : structure.type === "tower" ? 3000 : structure.type === "container" ? 250000 : 1000
     });
   }
   removeWhere(collection(db, "rooms.terrain"), (terrain) => terrain.room === config.roomName);

@@ -46,6 +46,8 @@ describe("private scenario definitions", () => {
     const scenarios = await loadScenarioDefinitions("test/scenarios/definitions");
 
     expect(scenarios.map((scenario) => scenario.name)).toEqual([
+      "critical-hauler-loss",
+      "critical-hauler-loss-control",
       "healer-and-attacker",
       "melee-attacker",
       "no-hostile-baseline",

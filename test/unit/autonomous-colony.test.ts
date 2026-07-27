@@ -3518,6 +3518,72 @@ describe("memory, console API, and observability", () => {
       }
     });
   });
+
+  test("private testing telemetry records critical hauler diagnostic samples when configured", () => {
+    const worker = createWorker("worker-diagnostic", 0);
+    const spawn = createSpawn(300);
+    const room = createRoom({
+      rcl: 3,
+      structures: [spawn],
+      creeps: [worker],
+      energyAvailable: 300,
+      energyCapacityAvailable: 550
+    });
+    const memory: ColonyRootMemory = {
+      colonies: { W1N1: createInitialColonyMemory("W1N1", 3, 1) },
+      config: {
+        privateTestingEnabled: true,
+        diagnostics: {
+          scenarioId: "critical-hauler-loss",
+          runId: "run-live",
+          startedAtTick: 1000,
+          roomName: "W1N1",
+          replacementRequestDelayTicks: 38,
+          replacementSpawnDelayTicks: 22
+        }
+      }
+    };
+
+    runOwnedColonies({
+      game: {
+        time: 1200,
+        rooms: { W1N1: room },
+        creeps: { "worker-diagnostic": worker }
+      },
+      memory,
+      constants,
+      log: vi.fn(),
+      cpu: { getUsed: () => 1, bucket: 10000 }
+    });
+
+    expect(memory.testing?.diagnostics?.events).toContainEqual(
+      expect.objectContaining({
+        runId: "run-live",
+        scenarioId: "critical-hauler-loss",
+        gameTick: 1200,
+        roomName: "W1N1",
+        eventType: "hauler_lost"
+      })
+    );
+    expect(memory.testing?.diagnostics?.metrics).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          runId: "run-live",
+          scenarioId: "critical-hauler-loss",
+          gameTick: 1200,
+          metricName: "logistics.activeHaulingCapacity"
+        }),
+        expect.objectContaining({
+          metricName: "source.containerFullness",
+          value: expect.any(Number)
+        }),
+        expect.objectContaining({
+          metricName: "room.energyAvailable",
+          value: 300
+        })
+      ])
+    );
+  });
 });
 
 function bodyCost(body: string[]): number {

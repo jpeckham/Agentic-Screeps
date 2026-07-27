@@ -29,7 +29,7 @@ describe("private world reset and seeding", () => {
     expect(plan.cliScript).not.toContain("SCREEPS_TOKEN");
   });
 
-  test("creates a deterministic owned RCL3 colony seed with tower and extensions", () => {
+  test("creates a deterministic owned RCL3 colony seed with tower, extensions, and source containers", () => {
     const plan = createOwnedColonySeedPlan({
       username: "agentic-bot",
       roomName: "E1S1"
@@ -44,12 +44,19 @@ describe("private world reset and seeding", () => {
       "extension",
       "extension",
       "extension",
-      "extension"
+      "extension",
+      "container",
+      "container"
     ]);
     expect(plan.sources).toHaveLength(2);
+    expect(plan.structures.filter((structure) => structure.type === "container")).toEqual([
+      expect.objectContaining({ id: "E1S1-container-source-1", x: 19, y: 22 }),
+      expect.objectContaining({ id: "E1S1-container-source-2", x: 33, y: 28 })
+    ]);
     expect(plan.storage.energyAvailable).toBe(800);
     expect(plan.cliScript).toContain("StructureSpawn");
     expect(plan.cliScript).toContain("StructureTower");
+    expect(plan.cliScript).toContain("StructureContainer");
   });
 
   test("validates deterministic seed coordinates and duplicate object ids", () => {

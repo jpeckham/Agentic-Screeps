@@ -11,7 +11,19 @@ export interface CombatScenario {
   };
   durationTicks: number;
   hostileCreeps: HostileCreepFixture[];
+  diagnostics?: DiagnosticScenarioConfig;
   assertions: ScenarioAssertion[];
+}
+
+export interface DiagnosticScenarioConfig {
+  type: "critical-hauler-loss";
+  roomName?: string;
+  stableBaselineTick?: number;
+  haulerLossTick?: number;
+  replacementRequestDelayTicks: number;
+  replacementSpawnDelayTicks: number;
+  controlReplacementRequestDelayTicks?: number;
+  controlReplacementSpawnDelayTicks?: number;
 }
 
 export interface HostileCreepFixture {

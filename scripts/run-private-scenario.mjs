@@ -34,6 +34,9 @@ try {
         ? await collectAndWriteScenarioReport(scenario, status, env)
         : await writeSetupFailureReport(scenario, status, setup.error);
     }
+    if (result.passed && scenario.diagnostics?.type === "critical-hauler-loss") {
+      await runNodeScript(["scripts/generate-critical-hauler-loss-diagnostic.mjs", scenario.name], env);
+    }
     process.stdout.write(await readFile(result.textPath, "utf8"));
     if (!result.passed) exitCode = 1;
   }
@@ -72,12 +75,33 @@ async function setupScenarioWorld(scenario, env) {
   try {
     await runNodeScript(["scripts/private-screeps-world.mjs", "reset"], env);
     await runNodeScript(["scripts/private-screeps-world.mjs", "seed"], env);
+    await waitForPostSeedDeployReadiness(env);
     if (scenario.hostileCreeps.length > 0) {
       await runNodeScript(["scripts/private-screeps-world.mjs", "hostiles", scenario.name], env);
     }
     await runNodeScript(["scripts/deploy-local-screeps.mjs"], env);
-    await createScenarioClient(readPrivateConfig(env)).writeMemory(
-      { privateTestingEnabled: true, visualsEnabled: true },
+    const config = readPrivateConfig(env);
+    const startedAtTick = (await readStatus(env)).tick ?? 0;
+    await createScenarioClient(config).writeMemory(
+      {
+        privateTestingEnabled: true,
+        visualsEnabled: true,
+        ...(scenario.diagnostics?.type === "critical-hauler-loss"
+          ? {
+              diagnostics: {
+                scenarioId: "critical-hauler-loss",
+                reportScenarioId: scenario.name,
+                runId: env.DIAGNOSTIC_RUN_ID || `${scenario.name}-${Date.now()}`,
+                startedAtTick,
+                roomName: scenario.diagnostics.roomName || config.roomName,
+                stableBaselineOffsetTicks: scenario.diagnostics.stableBaselineTick ?? 100,
+                haulerLossOffsetTicks: scenario.diagnostics.haulerLossTick ?? 200,
+                replacementRequestDelayTicks: scenario.diagnostics.replacementRequestDelayTicks,
+                replacementSpawnDelayTicks: scenario.diagnostics.replacementSpawnDelayTicks
+              }
+            }
+          : {})
+      },
       "config"
     );
     return { ok: true };
@@ -92,6 +116,13 @@ async function runNodeScript(scriptArgs, env) {
     cwd: process.cwd(),
     env
   });
+}
+
+async function waitForPostSeedDeployReadiness(env) {
+  const delayMs = Number(env.SCREEPS_PRIVATE_POST_SEED_DEPLOY_DELAY_MS || 60_000);
+  if (!Number.isFinite(delayMs) || delayMs <= 0) return;
+  if (verbose) process.stdout.write(`> wait ${delayMs}ms for private API auth readiness\n`);
+  await delay(delayMs);
 }
 
 async function writeStoppedReport(scenario, status) {
@@ -404,34 +435,50 @@ function createScenarioClient(config) {
 
   async function getToken() {
     if (token) return token;
-    const response = await fetch(`${config.endpoint}/api/auth/signin`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ email: config.username, password: config.password })
-    });
-    const body = parseJson(await response.text());
-    if (!response.ok) throw new Error("Private Screeps authentication failed.");
-    token = body.token ?? body.accessToken;
-    if (typeof token !== "string" || !token) {
-      throw new Error("Private Screeps authentication response did not include a token.");
-    }
+    token = await authenticate(config);
     return token;
   }
 }
 
 async function request(config, token, path, init = {}) {
-  const response = await fetch(`${config.endpoint}${path}`, {
-    ...init,
-    headers: {
-      "content-type": "application/json",
-      "X-Token": token,
-      ...init.headers
+  const attempts = 60;
+  let activeToken = token;
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    const response = await fetch(`${config.endpoint}${path}`, {
+      ...init,
+      headers: {
+        "content-type": "application/json",
+        "X-Token": activeToken,
+        ...init.headers
+      }
+    });
+    const text = await response.text();
+    if (response.status === 401 && attempt < attempts) {
+      activeToken = await authenticate(config);
+      await delay(1000);
+      continue;
     }
+    const body = parseJson(text);
+    if (!response.ok) throw new Error(`Private Screeps API request failed (${response.status}) at ${path}.`);
+    if (typeof body.error === "string") throw new Error(`Private Screeps API error: ${redact(body.error)}`);
+    return body;
+  }
+  throw new Error(`Private Screeps API request failed after retry at ${path}.`);
+}
+
+async function authenticate(config) {
+  const response = await fetch(`${config.endpoint}/api/auth/signin`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ email: config.username, password: config.password })
   });
   const body = parseJson(await response.text());
-  if (!response.ok) throw new Error(`Private Screeps API request failed (${response.status}).`);
-  if (typeof body.error === "string") throw new Error(`Private Screeps API error: ${redact(body.error)}`);
-  return body;
+  if (!response.ok) throw new Error("Private Screeps authentication failed.");
+  const token = body.token ?? body.accessToken;
+  if (typeof token !== "string" || !token) {
+    throw new Error("Private Screeps authentication response did not include a token.");
+  }
+  return token;
 }
 
 function parseMemoryData(data) {

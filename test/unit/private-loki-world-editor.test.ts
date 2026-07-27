@@ -74,7 +74,7 @@ describe("private Loki world editor", () => {
       })
     );
 
-    expect(seed.structures).toBe(7);
+    expect(seed.structures).toBe(9);
     expect(hostile.hostiles).toEqual(["attacker-1"]);
     expect(collection(db, "rooms").data).toContainEqual(expect.objectContaining({ _id: "W1N1" }));
     expect(collection(db, "rooms.terrain").data).toContainEqual(expect.objectContaining({ room: "W1N1" }));
@@ -84,6 +84,8 @@ describe("private Loki world editor", () => {
         expect.objectContaining({ type: "controller", room: "W1N1", user: "bot-id", level: 3 }),
         expect.objectContaining({ type: "spawn", room: "W1N1", user: "bot-id" }),
         expect.objectContaining({ type: "tower", room: "W1N1", user: "bot-id" }),
+        expect.objectContaining({ _id: "W1N1-container-source-1", type: "container", room: "W1N1" }),
+        expect.objectContaining({ _id: "W1N1-container-source-2", type: "container", room: "W1N1" }),
         expect.objectContaining({ type: "creep", room: "W1N1", user: enemy._id, name: "attacker-1" })
       ])
     );

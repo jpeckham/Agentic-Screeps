@@ -107,24 +107,34 @@ class PrivateDeployClient {
   }
 
   async request(path, init = {}) {
-    const token = await this.getToken();
-    let response;
-    try {
-      response = await fetch(`${this.config.endpoint}${path}`, {
-        ...init,
-        headers: {
-          "content-type": "application/json",
-          "X-Token": token,
-          ...init.headers
-        }
-      });
-    } catch {
-      throw new Error(`Private Screeps server is unavailable at ${this.config.endpoint}.`);
+    const attempts = 60;
+    for (let attempt = 1; attempt <= attempts; attempt += 1) {
+      const token = await this.getToken();
+      let response;
+      try {
+        response = await fetch(`${this.config.endpoint}${path}`, {
+          ...init,
+          headers: {
+            "content-type": "application/json",
+            "X-Token": token,
+            ...init.headers
+          }
+        });
+      } catch {
+        throw new Error(`Private Screeps server is unavailable at ${this.config.endpoint}.`);
+      }
+      const text = await response.text();
+      if (response.status === 401 && attempt < attempts) {
+        this.token = undefined;
+        await delay(1000);
+        continue;
+      }
+      const body = parseJson(text);
+      if (!response.ok) throw new Error(`Private Screeps API request failed (${response.status}) at ${path}.`);
+      if (typeof body.error === "string") throw new Error(`Private Screeps API error: ${sanitize(body.error)}`);
+      return body;
     }
-    const body = parseJson(await response.text());
-    if (!response.ok) throw new Error(`Private Screeps API request failed (${response.status}).`);
-    if (typeof body.error === "string") throw new Error(`Private Screeps API error: ${sanitize(body.error)}`);
-    return body;
+    throw new Error("Private Screeps API request failed after retry.");
   }
 
   async getToken() {
@@ -205,6 +215,10 @@ function isOfficialEndpoint(endpoint) {
 
 function sanitize(value) {
   return value.replace(/[A-Za-z0-9_-]{12,}/g, "[redacted]");
+}
+
+function delay(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 async function main() {

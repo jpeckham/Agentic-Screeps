@@ -50,6 +50,7 @@ export interface ColonyRootMemory {
   config?: {
     visualsEnabled?: boolean;
     privateTestingEnabled?: boolean;
+    diagnostics?: DiagnosticScenarioMemory;
   };
   creeps?: Record<string, ColonyCreepMemory | Record<string, unknown>>;
   testing?: {
@@ -67,7 +68,46 @@ export interface ColonyRootMemory {
         action: "attack" | "hold";
       };
     }>;
+    diagnostics?: PrivateTestingDiagnosticMemory;
   };
+}
+
+export interface DiagnosticScenarioMemory {
+  scenarioId: "critical-hauler-loss";
+  runId: string;
+  reportScenarioId?: string;
+  startedAtTick: number;
+  roomName?: string;
+  stableBaselineOffsetTicks?: number;
+  haulerLossOffsetTicks?: number;
+  replacementRequestDelayTicks: number;
+  replacementSpawnDelayTicks: number;
+}
+
+export interface PrivateTestingDiagnosticMemory {
+  events: Array<{
+    runId: string;
+    scenarioId: string;
+    gameTick: number;
+    roomName?: string;
+    subsystem: string;
+    eventType: string;
+    entityId?: string;
+    measurements?: Record<string, number>;
+    context?: Record<string, string | number | boolean>;
+    codeVersion?: string;
+  }>;
+  metrics: Array<{
+    runId: string;
+    scenarioId: string;
+    gameTick: number;
+    roomName?: string;
+    metricName: string;
+    value: number;
+    unit?: string;
+    dimensions?: Record<string, string>;
+  }>;
+  emittedEventKeys?: string[];
 }
 
 export function createInitialColonyMemory(

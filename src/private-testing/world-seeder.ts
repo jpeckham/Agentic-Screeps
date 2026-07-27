@@ -32,7 +32,7 @@ export interface SeedSource {
 
 export interface SeedStructure {
   id: string;
-  type: "spawn" | "tower" | "extension";
+  type: "spawn" | "tower" | "extension" | "container";
   x: number;
   y: number;
   energy: number;
@@ -61,7 +61,9 @@ export function createOwnedColonySeedPlan(options: OwnedColonySeedOptions): Worl
       { id: `${options.roomName}-extension-2`, type: "extension", x: 26, y: 24, energy: 50, energyCapacity: 50 },
       { id: `${options.roomName}-extension-3`, type: "extension", x: 24, y: 26, energy: 50, energyCapacity: 50 },
       { id: `${options.roomName}-extension-4`, type: "extension", x: 26, y: 26, energy: 50, energyCapacity: 50 },
-      { id: `${options.roomName}-extension-5`, type: "extension", x: 25, y: 27, energy: 50, energyCapacity: 50 }
+      { id: `${options.roomName}-extension-5`, type: "extension", x: 25, y: 27, energy: 50, energyCapacity: 50 },
+      { id: `${options.roomName}-container-source-1`, type: "container", x: 19, y: 22, energy: 0, energyCapacity: 2000 },
+      { id: `${options.roomName}-container-source-2`, type: "container", x: 33, y: 28, energy: 0, energyCapacity: 2000 }
     ],
     storage: {
       energyAvailable: 800
@@ -106,7 +108,7 @@ function renderSeedCliScript(plan: WorldSeedPlan): string {
     "    await storage.db['rooms.objects'].insert({ _id: source.id, type: 'source', room: plan.roomName, x: source.x, y: source.y, energy: source.energy, energyCapacity: source.energy });",
     "  }",
     "  for (const structure of plan.structures) {",
-    "    const ctor = structure.type === 'spawn' ? 'StructureSpawn' : structure.type === 'tower' ? 'StructureTower' : 'StructureExtension';",
+    "    const ctor = structure.type === 'spawn' ? 'StructureSpawn' : structure.type === 'tower' ? 'StructureTower' : structure.type === 'container' ? 'StructureContainer' : 'StructureExtension';",
     "    await storage.db['rooms.objects'].insert({ _id: structure.id, type: structure.type, room: plan.roomName, x: structure.x, y: structure.y, user: user._id, energy: structure.energy, energyCapacity: structure.energyCapacity, name: structure.id, className: ctor });",
     "  }",
     "  await storage.db['rooms.terrain'].insert({ room: plan.roomName, terrain: '0'.repeat(2500), type: 'terrain' });",

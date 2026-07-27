@@ -1,0 +1,23 @@
+{
+  "name": "critical-hauler-loss-control",
+  "description": "Control diagnostic scenario where a critical hauler is replaced promptly and correlated backpressure should not be produced.",
+  "initialState": {
+    "baseline": "owned-colony"
+  },
+  "durationTicks": 260,
+  "hostileCreeps": [],
+  "diagnostics": {
+    "type": "critical-hauler-loss",
+    "roomName": "W1N1",
+    "stableBaselineTick": 100,
+    "haulerLossTick": 200,
+    "replacementRequestDelayTicks": 1,
+    "replacementSpawnDelayTicks": 3
+  },
+  "assertions": [
+    {
+      "type": "noRuntimeException",
+      "label": "loop stayed healthy"
+    }
+  ]
+}

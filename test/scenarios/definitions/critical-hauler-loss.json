@@ -1,0 +1,25 @@
+{
+  "name": "critical-hauler-loss",
+  "description": "Deterministic diagnostic scenario where a critical hauler is lost and logistics recovery is delayed.",
+  "initialState": {
+    "baseline": "owned-colony"
+  },
+  "durationTicks": 320,
+  "hostileCreeps": [],
+  "diagnostics": {
+    "type": "critical-hauler-loss",
+    "roomName": "W1N1",
+    "stableBaselineTick": 100,
+    "haulerLossTick": 200,
+    "replacementRequestDelayTicks": 38,
+    "replacementSpawnDelayTicks": 22,
+    "controlReplacementRequestDelayTicks": 1,
+    "controlReplacementSpawnDelayTicks": 3
+  },
+  "assertions": [
+    {
+      "type": "noRuntimeException",
+      "label": "loop stayed healthy"
+    }
+  ]
+}
